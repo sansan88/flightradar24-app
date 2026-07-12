@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   IonBadge,
   IonContent,
@@ -15,16 +15,11 @@ import {
   type RefresherEventDetail,
 } from '@ionic/react';
 import type { Aircraft } from '../types/aircraft';
-import { callsignOf } from '../types/aircraft';
+import { callsignOf, formatAltitude } from '../types/aircraft';
 import { formatAircraftDetails, formatRoute } from '../services/adsbdbService';
 import { useApp } from '../state/AppContext';
+import AircraftDetailModal from '../components/AircraftDetailModal';
 import './ListPage.css';
-
-function formatAlt(ac: Aircraft): string {
-  if (ac.alt_baro === 'ground') return 'Am Boden';
-  if (ac.alt_baro != null) return `${ac.alt_baro.toLocaleString('de-CH')} ft`;
-  return 'Höhe unbekannt';
-}
 
 /** Aktiv = aktuelle Position vorhanden und kürzlich empfangen */
 function isActive(ac: Aircraft): boolean {
@@ -33,6 +28,22 @@ function isActive(ac: Aircraft): boolean {
 
 const ListPage: React.FC = () => {
   const { filteredAircraft, enrichments, messages, error } = useApp();
+  const [selectedHex, setSelectedHex] = useState<string | null>(null);
+
+  // presentingElement für das iOS Card-Modal (Seite rückt in den Hintergrund)
+  const page = useRef<HTMLElement | null>(null);
+  const [presentingElement, setPresentingElement] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setPresentingElement(page.current);
+  }, []);
+
+  // Das ausgewählte Flugzeug live aus dem aktuellen Poll nachführen;
+  // verschwindet es aus dem Feed, bleibt der letzte Stand sichtbar
+  const lastSelected = useRef<Aircraft | null>(null);
+  const selected = selectedHex
+    ? (filteredAircraft.find((ac) => ac.hex === selectedHex) ?? lastSelected.current)
+    : null;
+  if (selected) lastSelected.current = selected;
 
   // Aktive Flieger zuoberst, innerhalb der Gruppen nach Callsign sortiert
   const sorted = [...filteredAircraft].sort((a, b) => {
@@ -47,13 +58,19 @@ const ListPage: React.FC = () => {
   };
 
   return (
-    <IonPage>
+    <IonPage ref={page}>
       <IonHeader>
         <IonToolbar>
           <IonTitle>Flugzeuge ({filteredAircraft.length})</IonTitle>
         </IonToolbar>
       </IonHeader>
       <IonContent fullscreen>
+        <IonHeader collapse="condense">
+          <IonToolbar>
+            <IonTitle size="large">Flugzeuge</IonTitle>
+          </IonToolbar>
+        </IonHeader>
+
         <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
           <IonRefresherContent />
         </IonRefresher>
@@ -64,13 +81,18 @@ const ListPage: React.FC = () => {
           </IonItem>
         )}
 
-        <IonList>
+        <IonList inset>
           {sorted.map((ac) => {
             const enrichment = enrichments[ac.hex];
             const route = formatRoute(enrichment?.route);
             const aircraftInfo = formatAircraftDetails(enrichment?.details);
             return (
-              <IonItem key={ac.hex}>
+              <IonItem
+                key={ac.hex}
+                button
+                detail
+                onClick={() => setSelectedHex(ac.hex)}
+              >
                 <IonLabel>
                   <h2>
                     {callsignOf(ac)}{' '}
@@ -83,13 +105,12 @@ const ListPage: React.FC = () => {
                   {aircraftInfo && <p>{aircraftInfo}</p>}
                   {route && <p className="route-info">{route}</p>}
                   <p>
-                    {formatAlt(ac)}
+                    {formatAltitude(ac.alt_baro)}
                     {ac.gs != null && ` · ${Math.round(ac.gs)} kt`}
                     {ac.track != null && ` · ${Math.round(ac.track)}°`}
                     {ac.squawk && ` · Squawk ${ac.squawk}`}
                   </p>
                 </IonLabel>
-                <IonNote slot="end">{ac.hex.toUpperCase()}</IonNote>
               </IonItem>
             );
           })}
@@ -104,6 +125,13 @@ const ListPage: React.FC = () => {
         <div className="ion-text-center ion-padding">
           <IonNote>{messages.toLocaleString('de-CH')} Mode-S Messages empfangen</IonNote>
         </div>
+
+        <AircraftDetailModal
+          aircraft={selected}
+          enrichment={selected ? enrichments[selected.hex] : undefined}
+          presentingElement={presentingElement}
+          onDismiss={() => setSelectedHex(null)}
+        />
       </IonContent>
     </IonPage>
   );

@@ -31,6 +31,11 @@ const SettingsPage: React.FC = () => {
         </IonToolbar>
       </IonHeader>
       <IonContent fullscreen>
+        <IonHeader collapse="condense">
+          <IonToolbar>
+            <IonTitle size="large">Einstellungen</IonTitle>
+          </IonToolbar>
+        </IonHeader>
         <IonList inset>
           <IonItemGroup>
             <IonItemDivider>

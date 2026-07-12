@@ -14,7 +14,7 @@ import { wifiOutline, airplaneOutline, warningOutline } from 'ionicons/icons';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Aircraft } from '../types/aircraft';
-import { callsignOf } from '../types/aircraft';
+import { callsignOf, formatAltitude } from '../types/aircraft';
 import {
   formatAircraftDetails,
   formatRoute,
@@ -87,7 +87,7 @@ function popupHtml(ac: Aircraft, enrichment?: Enrichment): string {
     ['Registration', enrichment?.details?.registration ?? '–'],
     ['ICAO Hex', ac.hex.toUpperCase()],
     ['Kategorie', ac.category ?? '–'],
-    ['Höhe', ac.alt_baro === 'ground' ? 'Am Boden' : ac.alt_baro != null ? `${ac.alt_baro.toLocaleString('de-CH')} ft` : '–'],
+    ['Höhe', formatAltitude(ac.alt_baro)],
     ['Geschwindigkeit', ac.gs != null ? `${Math.round(ac.gs)} kt` : '–'],
     ['Kurs', ac.track != null ? `${Math.round(ac.track)}°` : '–'],
     ['Steig-/Sinkrate', ac.baro_rate != null ? `${ac.baro_rate} ft/min` : '–'],
@@ -184,7 +184,7 @@ const MapPage: React.FC = () => {
           <IonTitle>FlightRadar</IonTitle>
         </IonToolbar>
       </IonHeader>
-      <IonContent fullscreen scrollY={false}>
+      <IonContent scrollY={false}>
         <div className="map-container" ref={mapContainer} />
         <div className="map-overlay">
           <IonChip color={error ? 'danger' : 'success'}>

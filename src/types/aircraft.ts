@@ -56,3 +56,14 @@ export function categoryOf(ac: Aircraft): string {
 export function callsignOf(ac: Aircraft): string {
   return ac.flight?.trim() || ac.hex.toUpperCase();
 }
+
+export function metersFromFeet(feet: number): number {
+  return Math.round(feet * 0.3048);
+}
+
+/** Höhe primär in Metern, mit Fuss in Klammern */
+export function formatAltitude(alt?: number | 'ground'): string {
+  if (alt === 'ground') return 'Am Boden';
+  if (alt == null) return '–';
+  return `${metersFromFeet(alt).toLocaleString('de-CH')} m (${alt.toLocaleString('de-CH')} ft)`;
+}
