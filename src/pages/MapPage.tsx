@@ -15,6 +15,11 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Aircraft } from '../types/aircraft';
 import { callsignOf } from '../types/aircraft';
+import {
+  formatAircraftDetails,
+  formatRoute,
+  type Enrichment,
+} from '../services/adsbdbService';
 import { useApp } from '../state/AppContext';
 import './MapPage.css';
 
@@ -67,9 +72,19 @@ function updatePlaneElement(el: HTMLDivElement, ac: Aircraft): void {
   label.textContent = callsignOf(ac);
 }
 
-function popupHtml(ac: Aircraft): string {
+function popupHtml(ac: Aircraft, enrichment?: Enrichment): string {
+  const route = formatRoute(enrichment?.route);
+  const aircraftInfo = formatAircraftDetails(enrichment?.details);
+  const header = [
+    aircraftInfo && `<div class="popup-aircraft">${aircraftInfo}</div>`,
+    route && `<div class="popup-route">${route}</div>`,
+  ]
+    .filter(Boolean)
+    .join('');
+
   const rows: [string, string][] = [
     ['Callsign', callsignOf(ac)],
+    ['Registration', enrichment?.details?.registration ?? '–'],
     ['ICAO Hex', ac.hex.toUpperCase()],
     ['Kategorie', ac.category ?? '–'],
     ['Höhe', ac.alt_baro === 'ground' ? 'Am Boden' : ac.alt_baro != null ? `${ac.alt_baro.toLocaleString('de-CH')} ft` : '–'],
@@ -79,13 +94,13 @@ function popupHtml(ac: Aircraft): string {
     ['Squawk', ac.squawk ?? '–'],
     ['Signal', ac.rssi != null ? `${ac.rssi} dBFS` : '–'],
   ];
-  return `<div class="plane-popup">${rows
+  return `<div class="plane-popup">${header}${rows
     .map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`)
     .join('')}</div>`;
 }
 
 const MapPage: React.FC = () => {
-  const { settings, filteredAircraft, error, lastUpdate } = useApp();
+  const { settings, filteredAircraft, enrichments, error, lastUpdate } = useApp();
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef(new Map<string, maplibregl.Marker>());
@@ -125,15 +140,20 @@ const MapPage: React.FC = () => {
       if (ac.lat == null || ac.lon == null) continue;
       seen.add(ac.hex);
 
+      const enrichment = enrichments[ac.hex];
       const existing = markers.get(ac.hex);
       if (existing) {
         existing.setLngLat([ac.lon, ac.lat]);
         updatePlaneElement(existing.getElement() as HTMLDivElement, ac);
-        existing.getPopup()?.setHTML(popupHtml(ac));
+        existing.getPopup()?.setHTML(popupHtml(ac, enrichment));
       } else {
         const marker = new maplibregl.Marker({ element: planeElement(ac) })
           .setLngLat([ac.lon, ac.lat])
-          .setPopup(new maplibregl.Popup({ offset: 18, closeButton: false }).setHTML(popupHtml(ac)))
+          .setPopup(
+            new maplibregl.Popup({ offset: 18, closeButton: false }).setHTML(
+              popupHtml(ac, enrichment)
+            )
+          )
           .addTo(map);
         markers.set(ac.hex, marker);
       }
@@ -146,7 +166,7 @@ const MapPage: React.FC = () => {
         markers.delete(hex);
       }
     }
-  }, [filteredAircraft]);
+  }, [filteredAircraft, enrichments]);
 
   // Karte neu dimensionieren, wenn der Tab wieder sichtbar wird
   useEffect(() => {

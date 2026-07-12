@@ -16,7 +16,9 @@ import {
 } from '@ionic/react';
 import type { Aircraft } from '../types/aircraft';
 import { callsignOf } from '../types/aircraft';
+import { formatAircraftDetails, formatRoute } from '../services/adsbdbService';
 import { useApp } from '../state/AppContext';
+import './ListPage.css';
 
 function formatAlt(ac: Aircraft): string {
   if (ac.alt_baro === 'ground') return 'Am Boden';
@@ -24,12 +26,20 @@ function formatAlt(ac: Aircraft): string {
   return 'Höhe unbekannt';
 }
 
-const ListPage: React.FC = () => {
-  const { filteredAircraft, messages, error } = useApp();
+/** Aktiv = aktuelle Position vorhanden und kürzlich empfangen */
+function isActive(ac: Aircraft): boolean {
+  return ac.lat != null && ac.lon != null && (ac.seen ?? 0) < 60;
+}
 
-  const sorted = [...filteredAircraft].sort((a, b) =>
-    callsignOf(a).localeCompare(callsignOf(b))
-  );
+const ListPage: React.FC = () => {
+  const { filteredAircraft, enrichments, messages, error } = useApp();
+
+  // Aktive Flieger zuoberst, innerhalb der Gruppen nach Callsign sortiert
+  const sorted = [...filteredAircraft].sort((a, b) => {
+    const activeDiff = Number(isActive(b)) - Number(isActive(a));
+    if (activeDiff !== 0) return activeDiff;
+    return callsignOf(a).localeCompare(callsignOf(b));
+  });
 
   const handleRefresh = (event: CustomEvent<RefresherEventDetail>) => {
     // Der Provider pollt bereits – kurz warten, damit der Spinner sichtbar ist
@@ -55,24 +65,34 @@ const ListPage: React.FC = () => {
         )}
 
         <IonList>
-          {sorted.map((ac) => (
-            <IonItem key={ac.hex}>
-              <IonLabel>
-                <h2>
-                  {callsignOf(ac)}{' '}
-                  {ac.category && <IonBadge color="medium">{ac.category}</IonBadge>}
-                  {ac.lat == null && <IonBadge color="warning">Keine Position</IonBadge>}
-                </h2>
-                <p>
-                  {formatAlt(ac)}
-                  {ac.gs != null && ` · ${Math.round(ac.gs)} kt`}
-                  {ac.track != null && ` · ${Math.round(ac.track)}°`}
-                  {ac.squawk && ` · Squawk ${ac.squawk}`}
-                </p>
-              </IonLabel>
-              <IonNote slot="end">{ac.hex.toUpperCase()}</IonNote>
-            </IonItem>
-          ))}
+          {sorted.map((ac) => {
+            const enrichment = enrichments[ac.hex];
+            const route = formatRoute(enrichment?.route);
+            const aircraftInfo = formatAircraftDetails(enrichment?.details);
+            return (
+              <IonItem key={ac.hex}>
+                <IonLabel>
+                  <h2>
+                    {callsignOf(ac)}{' '}
+                    {enrichment?.details?.registration && (
+                      <IonBadge color="light">{enrichment.details.registration}</IonBadge>
+                    )}{' '}
+                    {ac.category && <IonBadge color="medium">{ac.category}</IonBadge>}{' '}
+                    {!isActive(ac) && <IonBadge color="warning">Inaktiv</IonBadge>}
+                  </h2>
+                  {aircraftInfo && <p>{aircraftInfo}</p>}
+                  {route && <p className="route-info">{route}</p>}
+                  <p>
+                    {formatAlt(ac)}
+                    {ac.gs != null && ` · ${Math.round(ac.gs)} kt`}
+                    {ac.track != null && ` · ${Math.round(ac.track)}°`}
+                    {ac.squawk && ` · Squawk ${ac.squawk}`}
+                  </p>
+                </IonLabel>
+                <IonNote slot="end">{ac.hex.toUpperCase()}</IonNote>
+              </IonItem>
+            );
+          })}
         </IonList>
 
         {sorted.length === 0 && !error && (

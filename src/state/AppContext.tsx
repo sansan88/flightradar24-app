@@ -10,6 +10,11 @@ import type { Aircraft } from '../types/aircraft';
 import { categoryOf } from '../types/aircraft';
 import { fetchAircraft } from '../services/aircraftService';
 import {
+  fetchAircraftDetails,
+  fetchFlightRoute,
+  type Enrichment,
+} from '../services/adsbdbService';
+import {
   DEFAULT_SETTINGS,
   loadSettings,
   saveSettings,
@@ -29,6 +34,8 @@ interface AppState {
   error: string | null;
   /** Anzahl empfangener Mode-S Messages laut Service */
   messages: number;
+  /** Zusatzinfos (Route, Flugzeugtyp) pro ICAO-Hex von adsbdb.com */
+  enrichments: Record<string, Enrichment>;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -40,7 +47,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastUpdate, setLastUpdate] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState(0);
+  const [enrichments, setEnrichments] = useState<Record<string, Enrichment>>({});
   const pollInFlight = useRef(false);
+  const enrichInFlight = useRef(false);
+
+  /**
+   * Route und Flugzeugdetails von adsbdb.com nachladen.
+   * Läuft sequenziell pro Flugzeug; Ergebnisse (inkl. 404-Misses) werden
+   * im Service 24 h gecacht, sodass pro Flieger nur einmal angefragt wird.
+   */
+  const enrich = useCallback(async (list: Aircraft[]) => {
+    if (enrichInFlight.current) return;
+    enrichInFlight.current = true;
+    try {
+      for (const ac of list) {
+        const callsign = ac.flight?.trim();
+        const [route, details] = await Promise.all([
+          callsign ? fetchFlightRoute(callsign) : Promise.resolve(null),
+          fetchAircraftDetails(ac.hex),
+        ]);
+        if (route || details) {
+          setEnrichments((prev) => {
+            const existing = prev[ac.hex];
+            const next: Enrichment = {
+              route: route ?? existing?.route,
+              details: details ?? existing?.details,
+            };
+            if (
+              existing &&
+              existing.route === next.route &&
+              existing.details === next.details
+            ) {
+              return prev;
+            }
+            return { ...prev, [ac.hex]: next };
+          });
+        }
+      }
+    } finally {
+      enrichInFlight.current = false;
+    }
+  }, []);
 
   useEffect(() => {
     loadSettings().then((loaded) => {
@@ -72,6 +119,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setMessages(data.messages ?? 0);
         setLastUpdate(Date.now());
         setError(null);
+        void enrich(data.aircraft ?? []);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : String(err));
@@ -88,7 +136,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [settingsLoaded, settings]);
+  }, [settingsLoaded, settings, enrich]);
 
   const filteredAircraft =
     settings.categories.length === 0
@@ -105,6 +153,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastUpdate,
         error,
         messages,
+        enrichments,
       }}
     >
       {children}

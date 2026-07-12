@@ -13,7 +13,12 @@ Quelle der Flugdaten: [sansan88/flightradar24](https://github.com/sansan88/fligh
 - 🗺️ **Karte**: Alle Flugzeuge mit Position auf der Swisstopo-Landeskarte,
   Ausrichtung nach Kurs, Farbe nach Flughöhe, Popup mit Details
   (Callsign, Höhe, Geschwindigkeit, Squawk, …)
-- 📋 **Liste**: Alle empfangenen Flugzeuge, auch ohne Positionsdaten
+- ✈️ **Flugzeug- & Routeninfos** von [adsbdb.com](https://www.adsbdb.com/)
+  (wie im flightradar24-Script auf dem Pi): Typ, Hersteller, Betreiber,
+  Registration sowie Route (Abflug → Ziel). Antworten werden 24 h im
+  LRU-Cache gehalten, auch unbekannte Callsigns (404) werden gecacht.
+- 📋 **Liste**: Alle empfangenen Flugzeuge, auch ohne Positionsdaten —
+  aktive Flieger (mit aktueller Position) stehen zuoberst
 - ⚙️ **Einstellungen**:
   - IP-Adresse und Port des Raspberry Pi im lokalen Netzwerk
   - Aktualisierungsintervall (1–30 s)

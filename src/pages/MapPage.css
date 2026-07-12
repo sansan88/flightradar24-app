@@ -53,6 +53,18 @@
   color: #1a1a1a;
 }
 
+.popup-aircraft {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.popup-route {
+  color: #d52b1e;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
 .plane-popup div {
   display: flex;
   justify-content: space-between;
