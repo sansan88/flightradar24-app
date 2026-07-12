@@ -1,0 +1,65 @@
+.map-container {
+  position: absolute;
+  inset: 0;
+}
+
+.map-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 56px;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.map-overlay ion-chip {
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(4px);
+}
+
+.total-badge {
+  margin-left: 6px;
+}
+
+.plane-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+
+.plane-marker svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.plane-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #1a1a1a;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 3px;
+  padding: 0 3px;
+  margin-top: -2px;
+  white-space: nowrap;
+}
+
+.plane-popup {
+  font-size: 13px;
+  min-width: 190px;
+  color: #1a1a1a;
+}
+
+.plane-popup div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 1px 0;
+}
+
+.plane-popup span {
+  color: #666;
+}

@@ -1,0 +1,11 @@
+/* Ionic CSS Variablen: https://ionicframework.com/docs/theming/ */
+
+:root {
+  /* Swiss Red als Primärfarbe */
+  --ion-color-primary: #d52b1e;
+  --ion-color-primary-rgb: 213, 43, 30;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #bb261a;
+  --ion-color-primary-tint: #d94035;
+}
