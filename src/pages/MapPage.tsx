@@ -1,25 +1,26 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  IonBadge,
   IonChip,
   IonContent,
   IonHeader,
   IonIcon,
   IonLabel,
+  IonNote,
   IonPage,
   IonTitle,
   IonToolbar,
 } from '@ionic/react';
-import { wifiOutline, airplaneOutline, warningOutline } from 'ionicons/icons';
+import { airplaneOutline, warningOutline } from 'ionicons/icons';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Aircraft } from '../types/aircraft';
-import { callsignOf, formatAltitude } from '../types/aircraft';
+import { callsignOf, formatAltitude, metersFromFeet } from '../types/aircraft';
 import {
   formatAircraftDetails,
   formatRoute,
   type Enrichment,
 } from '../services/adsbdbService';
+import type { Settings } from '../services/settings';
 import { useApp } from '../state/AppContext';
 import './MapPage.css';
 
@@ -51,25 +52,55 @@ function altitudeColor(alt?: number | 'ground'): string {
 const PLANE_SVG_PATH =
   'M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z';
 
-function planeElement(ac: Aircraft): HTMLDivElement {
+/** Beschriftungszeilen am Icon gemäss Einstellungen zusammenstellen */
+function markerLabelLines(
+  ac: Aircraft,
+  settings: Settings,
+  enrichment?: Enrichment
+): string[] {
+  const values: Record<string, string | null> = {
+    callsign: callsignOf(ac),
+    registration: enrichment?.details?.registration ?? null,
+    type: enrichment?.details?.icao_type ?? enrichment?.details?.type ?? null,
+    route:
+      enrichment?.route?.origin?.iata_code && enrichment?.route?.destination?.iata_code
+        ? `${enrichment.route.origin.iata_code}→${enrichment.route.destination.iata_code}`
+        : null,
+    altitude:
+      ac.alt_baro === 'ground'
+        ? 'Boden'
+        : ac.alt_baro != null
+          ? `${metersFromFeet(ac.alt_baro).toLocaleString('de-CH')} m`
+          : null,
+    speed: ac.gs != null ? `${Math.round(ac.gs)} kt` : null,
+    category: ac.category ?? null,
+  };
+  return settings.markerAttributes
+    .map((key) => values[key])
+    .filter((v): v is string => Boolean(v))
+    .slice(0, Math.max(0, settings.markerLines));
+}
+
+function planeElement(ac: Aircraft, lines: string[]): HTMLDivElement {
   const el = document.createElement('div');
   el.className = 'plane-marker';
   el.innerHTML = `
     <svg viewBox="0 0 24 24" width="30" height="30">
       <path d="${PLANE_SVG_PATH}" stroke="white" stroke-width="0.8" />
     </svg>
-    <span class="plane-label"></span>`;
-  updatePlaneElement(el, ac);
+    <div class="plane-labels"></div>`;
+  updatePlaneElement(el, ac, lines);
   return el;
 }
 
-function updatePlaneElement(el: HTMLDivElement, ac: Aircraft): void {
+function updatePlaneElement(el: HTMLDivElement, ac: Aircraft, lines: string[]): void {
   const svg = el.querySelector('svg') as SVGElement;
   const path = el.querySelector('path') as SVGPathElement;
-  const label = el.querySelector('.plane-label') as HTMLSpanElement;
+  const labels = el.querySelector('.plane-labels') as HTMLDivElement;
   svg.style.transform = `rotate(${ac.track ?? 0}deg)`;
   path.setAttribute('fill', altitudeColor(ac.alt_baro));
-  label.textContent = callsignOf(ac);
+  const html = lines.map((line) => `<span class="plane-label">${line}</span>`).join('');
+  if (labels.innerHTML !== html) labels.innerHTML = html;
 }
 
 function popupHtml(ac: Aircraft, enrichment?: Enrichment): string {
@@ -141,13 +172,14 @@ const MapPage: React.FC = () => {
       seen.add(ac.hex);
 
       const enrichment = enrichments[ac.hex];
+      const lines = markerLabelLines(ac, settings, enrichment);
       const existing = markers.get(ac.hex);
       if (existing) {
         existing.setLngLat([ac.lon, ac.lat]);
-        updatePlaneElement(existing.getElement() as HTMLDivElement, ac);
+        updatePlaneElement(existing.getElement() as HTMLDivElement, ac, lines);
         existing.getPopup()?.setHTML(popupHtml(ac, enrichment));
       } else {
-        const marker = new maplibregl.Marker({ element: planeElement(ac) })
+        const marker = new maplibregl.Marker({ element: planeElement(ac, lines) })
           .setLngLat([ac.lon, ac.lat])
           .setPopup(
             new maplibregl.Popup({ offset: 18, closeButton: false }).setHTML(
@@ -166,7 +198,7 @@ const MapPage: React.FC = () => {
         markers.delete(hex);
       }
     }
-  }, [filteredAircraft, enrichments]);
+  }, [filteredAircraft, enrichments, settings]);
 
   // Karte neu dimensionieren, wenn der Tab wieder sichtbar wird
   useEffect(() => {
@@ -182,36 +214,20 @@ const MapPage: React.FC = () => {
       <IonHeader>
         <IonToolbar>
           <IonTitle>FlightRadar</IonTitle>
+          {lastUpdate && (
+            <IonNote slot="end" className="update-note">
+              {new Date(lastUpdate).toLocaleTimeString('de-CH')}
+            </IonNote>
+          )}
         </IonToolbar>
       </IonHeader>
       <IonContent scrollY={false}>
         <div className="map-container" ref={mapContainer} />
         <div className="map-overlay">
-          <IonChip color={error ? 'danger' : 'success'}>
-            <IonIcon icon={error ? warningOutline : wifiOutline} />
-            <IonLabel>{settings.ip}:{settings.port}</IonLabel>
+          <IonChip color={error ? 'danger' : 'primary'}>
+            <IonIcon icon={error ? warningOutline : airplaneOutline} />
+            <IonLabel>{error ? 'Keine Verbindung' : `${visibleCount} sichtbar`}</IonLabel>
           </IonChip>
-          <IonChip color="primary">
-            <IonIcon icon={airplaneOutline} />
-            <IonLabel>
-              {visibleCount} sichtbar
-              <IonBadge color="light" className="total-badge">
-                {filteredAircraft.length} total
-              </IonBadge>
-            </IonLabel>
-          </IonChip>
-          {error && (
-            <IonChip color="danger">
-              <IonLabel>Keine Verbindung: {error}</IonLabel>
-            </IonChip>
-          )}
-          {!error && lastUpdate && (
-            <IonChip color="medium">
-              <IonLabel>
-                Aktualisiert {new Date(lastUpdate).toLocaleTimeString('de-CH')}
-              </IonLabel>
-            </IonChip>
-          )}
         </div>
       </IonContent>
     </IonPage>

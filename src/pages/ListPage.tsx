@@ -16,7 +16,7 @@ import {
 } from '@ionic/react';
 import type { Aircraft } from '../types/aircraft';
 import { callsignOf, formatAltitude } from '../types/aircraft';
-import { formatAircraftDetails, formatRoute } from '../services/adsbdbService';
+import { flagEmoji, formatAircraftDetails, formatRoute } from '../services/adsbdbService';
 import { useApp } from '../state/AppContext';
 import AircraftDetailModal from '../components/AircraftDetailModal';
 import './ListPage.css';
@@ -86,6 +86,7 @@ const ListPage: React.FC = () => {
             const enrichment = enrichments[ac.hex];
             const route = formatRoute(enrichment?.route);
             const aircraftInfo = formatAircraftDetails(enrichment?.details);
+            const flag = flagEmoji(enrichment?.details?.registered_owner_country_iso_name);
             return (
               <IonItem
                 key={ac.hex}
@@ -95,6 +96,7 @@ const ListPage: React.FC = () => {
               >
                 <IonLabel>
                   <h2>
+                    {flag && <span className="country-flag">{flag}</span>}
                     {callsignOf(ac)}{' '}
                     {enrichment?.details?.registration && (
                       <IonBadge color="light">{enrichment.details.registration}</IonBadge>

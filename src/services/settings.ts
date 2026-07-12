@@ -9,13 +9,30 @@ export interface Settings {
   refreshInterval: number;
   /** Gefilterte Kategorien (leer = alle anzeigen) */
   categories: string[];
+  /** Attribute, die als Beschriftung am Flugzeug-Icon angezeigt werden */
+  markerAttributes: string[];
+  /** Maximale Anzahl Beschriftungszeilen am Flugzeug-Icon (0 = keine) */
+  markerLines: number;
 }
+
+/** Verfügbare Attribute für die Beschriftung am Flugzeug-Icon */
+export const MARKER_ATTRIBUTES: Record<string, string> = {
+  callsign: 'Callsign',
+  registration: 'Registration',
+  type: 'Flugzeugtyp',
+  route: 'Route (IATA)',
+  altitude: 'Höhe (m)',
+  speed: 'Geschwindigkeit (kt)',
+  category: 'Kategorie',
+};
 
 export const DEFAULT_SETTINGS: Settings = {
   ip: '192.168.1.174',
   port: 8080,
   refreshInterval: 2,
   categories: [],
+  markerAttributes: ['callsign'],
+  markerLines: 1,
 };
 
 const STORAGE_KEY = 'flightradar-settings';

@@ -17,7 +17,7 @@ import {
   IonToolbar,
 } from '@ionic/react';
 import { AIRCRAFT_CATEGORIES } from '../types/aircraft';
-import { aircraftUrl } from '../services/settings';
+import { aircraftUrl, MARKER_ATTRIBUTES } from '../services/settings';
 import { useApp } from '../state/AppContext';
 
 const SettingsPage: React.FC = () => {
@@ -100,6 +100,52 @@ const SettingsPage: React.FC = () => {
                   updateSettings({ refreshInterval: e.detail.value as number })
                 }
               />
+            </IonItem>
+          </IonItemGroup>
+        </IonList>
+
+        <IonList inset>
+          <IonItemGroup>
+            <IonItemDivider>
+              <IonLabel>Flugzeug-Beschriftung auf der Karte</IonLabel>
+            </IonItemDivider>
+            <IonItem>
+              <IonSelect
+                label="Angezeigte Attribute"
+                labelPlacement="stacked"
+                multiple
+                placeholder="Keine Beschriftung"
+                value={settings.markerAttributes}
+                onIonChange={(e) =>
+                  updateSettings({ markerAttributes: (e.detail.value as string[]) ?? [] })
+                }
+              >
+                {Object.entries(MARKER_ATTRIBUTES).map(([key, label]) => (
+                  <IonSelectOption key={key} value={key}>
+                    {label}
+                  </IonSelectOption>
+                ))}
+              </IonSelect>
+            </IonItem>
+            <IonItem>
+              <IonRange
+                label={`Anzahl Zeilen: ${settings.markerLines}`}
+                labelPlacement="stacked"
+                min={0}
+                max={4}
+                step={1}
+                snaps
+                pin
+                value={settings.markerLines}
+                onIonChange={(e) => updateSettings({ markerLines: e.detail.value as number })}
+              />
+            </IonItem>
+            <IonItem lines="none">
+              <IonNote>
+                Die gewählten Attribute werden in dieser Reihenfolge als Zeilen unter dem
+                Flugzeug-Icon angezeigt, begrenzt auf die Anzahl Zeilen. 0 Zeilen = nur
+                das Icon.
+              </IonNote>
             </IonItem>
           </IonItemGroup>
         </IonList>

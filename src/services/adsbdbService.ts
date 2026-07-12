@@ -24,6 +24,15 @@ export interface AircraftDetails {
   registration?: string;
   registered_owner?: string;
   registered_owner_country_name?: string;
+  registered_owner_country_iso_name?: string;
+}
+
+/** ISO-3166-Ländercode (z. B. "CH") → Flaggen-Emoji 🇨🇭 */
+export function flagEmoji(iso?: string): string | null {
+  if (!iso || !/^[A-Za-z]{2}$/.test(iso)) return null;
+  return String.fromCodePoint(
+    ...[...iso.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)
+  );
 }
 
 const MAX_CACHE_SIZE = 1000;
@@ -139,6 +148,8 @@ export async function fetchAircraftDetails(hex: string): Promise<AircraftDetails
       manufacturer: 'Airbus',
       registration: 'HB-IFA',
       registered_owner: 'Swiss International Air Lines',
+      registered_owner_country_name: 'Switzerland',
+      registered_owner_country_iso_name: 'CH',
     };
   }
 

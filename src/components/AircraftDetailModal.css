@@ -3,3 +3,10 @@
   text-align: right;
   white-space: normal;
 }
+
+.modal-subtitle {
+  padding: 0 20px 10px;
+  color: var(--ion-color-medium);
+  font-size: 15px;
+  font-weight: 500;
+}

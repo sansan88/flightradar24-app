@@ -16,7 +16,12 @@ import {
 import type { Aircraft } from '../types/aircraft';
 import { callsignOf, formatAltitude, metersFromFeet } from '../types/aircraft';
 import { AIRCRAFT_CATEGORIES } from '../types/aircraft';
-import type { Enrichment, RouteAirport } from '../services/adsbdbService';
+import {
+  flagEmoji,
+  formatAircraftDetails,
+  type Enrichment,
+  type RouteAirport,
+} from '../services/adsbdbService';
 import './AircraftDetailModal.css';
 
 interface Props {
@@ -54,6 +59,8 @@ const AircraftDetailModal: React.FC<Props> = ({
   const route = enrichment?.route;
   const details = enrichment?.details;
   const ac = aircraft;
+  const flag = flagEmoji(details?.registered_owner_country_iso_name);
+  const aircraftInfo = formatAircraftDetails(details);
 
   return (
     <IonModal
@@ -69,9 +76,19 @@ const AircraftDetailModal: React.FC<Props> = ({
           </IonButtons>
         </IonToolbar>
       </IonHeader>
-      <IonContent>
+      <IonContent fullscreen>
         {ac && (
           <>
+            <IonHeader collapse="condense">
+              <IonToolbar>
+                <IonTitle size="large">
+                  {flag ? `${flag} ` : ''}
+                  {callsignOf(ac)}
+                </IonTitle>
+              </IonToolbar>
+              {aircraftInfo && <div className="modal-subtitle">{aircraftInfo}</div>}
+            </IonHeader>
+
             <IonList inset>
               <IonListHeader>
                 <IonLabel>Route</IonLabel>
@@ -98,7 +115,14 @@ const AircraftDetailModal: React.FC<Props> = ({
               <Row label="ICAO-Typ" value={details?.icao_type} />
               <Row label="Registration" value={details?.registration} />
               <Row label="Betreiber" value={details?.registered_owner} />
-              <Row label="Land" value={details?.registered_owner_country_name} />
+              <Row
+                label="Land"
+                value={
+                  details?.registered_owner_country_name
+                    ? `${flag ? `${flag} ` : ''}${details.registered_owner_country_name}`
+                    : null
+                }
+              />
               <Row
                 label="Kategorie"
                 value={ac.category ? AIRCRAFT_CATEGORIES[ac.category] ?? ac.category : null}
