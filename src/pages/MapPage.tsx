@@ -13,6 +13,7 @@ import {
 import { airplaneOutline, warningOutline } from 'ionicons/icons';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import maplibreWorkerSource from 'maplibre-gl/dist/maplibre-gl-csp-worker.js?raw';
 import type { Aircraft, TrackPoint } from '../types/aircraft';
 import { callsignOf, formatSpeed, metersFromFeet } from '../types/aircraft';
 import type { Enrichment } from '../services/adsbdbService';
@@ -26,6 +27,15 @@ import {
 } from '../services/planeIcons';
 import { useApp } from '../state/AppContext';
 import './MapPage.css';
+
+// MapLibre baut seinen Worker standardmässig per toString() aus dem eigenen
+// Bundle zusammen – nach dem Minifizieren durch Vite referenziert dieser Code
+// umbenannte Variablen und stirbt («… is not defined»). Folge: GeoJSON-Sources
+// (Track-Linie) funktionieren im Prod-Build/in der iOS-App nicht. Darum den
+// unveränderten, vorgebauten CSP-Worker als Blob laden.
+maplibregl.setWorkerUrl(
+  URL.createObjectURL(new Blob([maplibreWorkerSource], { type: 'text/javascript' }))
+);
 
 /** Farbe nach barometrischer Höhe (Gelb = tief, Blau/Violett = hoch) */
 function altitudeColor(alt?: number | 'ground'): string {
