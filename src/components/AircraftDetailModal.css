@@ -2,6 +2,8 @@
   max-width: 60%;
   text-align: right;
   white-space: normal;
+  /* Heller als das IonNote-Standardgrau, aber nicht voll Schwarz/Weiss */
+  color: rgba(var(--ion-text-color-rgb, 0, 0, 0), 0.85);
 }
 
 .modal-subtitle {
@@ -9,4 +11,27 @@
   color: var(--ion-color-medium);
   font-size: 15px;
   font-weight: 500;
+}
+
+/* Kompakte Zusammenfassung im Sheet-Modal (sichtbar beim 0.25-Breakpoint) */
+.sheet-summary {
+  padding: 8px 20px 12px;
+}
+
+.sheet-aircraft {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sheet-route {
+  color: var(--ion-color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.sheet-stats {
+  color: var(--ion-color-medium);
+  font-size: 14px;
+  margin-top: 2px;
 }

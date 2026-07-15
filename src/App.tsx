@@ -30,6 +30,9 @@ import '@ionic/react/css/text-transformation.css';
 import '@ionic/react/css/flex-utils.css';
 import '@ionic/react/css/display.css';
 
+/* Dark Mode automatisch nach Geräteeinstellung (prefers-color-scheme) */
+import '@ionic/react/css/palettes/dark.system.css';
+
 import './theme/variables.css';
 
 setupIonicReact();

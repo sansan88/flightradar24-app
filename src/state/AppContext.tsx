@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import type { Aircraft } from '../types/aircraft';
+import type { Aircraft, TrackPoint } from '../types/aircraft';
 import { categoryOf } from '../types/aircraft';
 import { fetchAircraft } from '../services/aircraftService';
 import {
@@ -36,7 +36,25 @@ interface AppState {
   messages: number;
   /** Zusatzinfos (Route, Flugzeugtyp) pro ICAO-Hex von adsbdb.com */
   enrichments: Record<string, Enrichment>;
+  /**
+   * Aufgezeichnete Positions-Historie pro ICAO-Hex (seit App-Start).
+   * Stabiles Objekt, wird bei jedem Poll in-place ergänzt – zusammen mit
+   * `aircraft` lesen, nicht als eigenständige Render-Abhängigkeit verwenden.
+   */
+  tracks: Record<string, TrackPoint[]>;
+  /** Auf der Karte ausgewähltes Flugzeug (Detail-Sheet + Track-Linie) */
+  selectedHex: string | null;
+  setSelectedHex: (hex: string | null) => void;
+  /** Letzte «Auf Karte anzeigen»-Anforderung (ts unterscheidet Wiederholungen) */
+  mapFocus: { hex: string; ts: number } | null;
+  /** Flugzeug auswählen und die Karte darauf zentrieren */
+  showOnMap: (hex: string) => void;
 }
+
+/** Maximale Punkte pro Flugzeug (~33 min bei 2 s Intervall) */
+const MAX_TRACK_POINTS = 1000;
+/** Historie verwerfen, wenn ein Flugzeug so lange nicht mehr gemeldet wurde */
+const TRACK_RETENTION_MS = 10 * 60_000;
 
 const AppContext = createContext<AppState | undefined>(undefined);
 
@@ -48,8 +66,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState(0);
   const [enrichments, setEnrichments] = useState<Record<string, Enrichment>>({});
+  const [selectedHex, setSelectedHex] = useState<string | null>(null);
+  const [mapFocus, setMapFocus] = useState<{ hex: string; ts: number } | null>(null);
+
+  const showOnMap = useCallback((hex: string) => {
+    setSelectedHex(hex);
+    setMapFocus({ hex, ts: Date.now() });
+  }, []);
   const pollInFlight = useRef(false);
   const enrichInFlight = useRef(false);
+  const tracksRef = useRef<Record<string, TrackPoint[]>>({});
+
+  /** Positionen des aktuellen Polls an die Historie anhängen */
+  const recordTracks = useCallback((list: Aircraft[]) => {
+    const tracks = tracksRef.current;
+    const now = Date.now();
+    for (const ac of list) {
+      if (ac.lat == null || ac.lon == null) continue;
+      const track = (tracks[ac.hex] ??= []);
+      const last = track[track.length - 1];
+      if (last && last.lon === ac.lon && last.lat === ac.lat) {
+        last.t = now; // Position unverändert – nur als aktuell bestätigen
+      } else {
+        track.push({ lon: ac.lon, lat: ac.lat, alt: ac.alt_baro, t: now });
+        if (track.length > MAX_TRACK_POINTS) track.shift();
+      }
+    }
+    for (const [hex, track] of Object.entries(tracks)) {
+      if (now - track[track.length - 1].t > TRACK_RETENTION_MS) {
+        delete tracks[hex];
+      }
+    }
+  }, []);
 
   /**
    * Route und Flugzeugdetails von adsbdb.com nachladen.
@@ -116,6 +164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const data = await fetchAircraft(settings);
         if (cancelled) return;
         setAircraft(data.aircraft ?? []);
+        recordTracks(data.aircraft ?? []);
         setMessages(data.messages ?? 0);
         setLastUpdate(Date.now());
         setError(null);
@@ -136,7 +185,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [settingsLoaded, settings, enrich]);
+  }, [settingsLoaded, settings, enrich, recordTracks]);
 
   const filteredAircraft =
     settings.categories.length === 0
@@ -154,6 +203,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         error,
         messages,
         enrichments,
+        tracks: tracksRef.current,
+        selectedHex,
+        setSelectedHex,
+        mapFocus,
+        showOnMap,
       }}
     >
       {children}

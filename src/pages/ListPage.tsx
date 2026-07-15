@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useHistory } from 'react-router-dom';
 import {
   IonBadge,
   IonContent,
@@ -15,7 +16,7 @@ import {
   type RefresherEventDetail,
 } from '@ionic/react';
 import type { Aircraft } from '../types/aircraft';
-import { callsignOf, formatAltitude } from '../types/aircraft';
+import { callsignOf, formatAltitude, formatSpeed } from '../types/aircraft';
 import { flagEmoji, formatAircraftDetails, formatRoute } from '../services/adsbdbService';
 import { useApp } from '../state/AppContext';
 import AircraftDetailModal from '../components/AircraftDetailModal';
@@ -27,8 +28,9 @@ function isActive(ac: Aircraft): boolean {
 }
 
 const ListPage: React.FC = () => {
-  const { filteredAircraft, enrichments, messages, error } = useApp();
+  const { filteredAircraft, enrichments, messages, error, showOnMap } = useApp();
   const [selectedHex, setSelectedHex] = useState<string | null>(null);
+  const history = useHistory();
 
   // presentingElement für das iOS Card-Modal (Seite rückt in den Hintergrund)
   const page = useRef<HTMLElement | null>(null);
@@ -64,7 +66,7 @@ const ListPage: React.FC = () => {
           <IonTitle>Flugzeuge ({filteredAircraft.length})</IonTitle>
         </IonToolbar>
       </IonHeader>
-      <IonContent fullscreen>
+      <IonContent fullscreen className="grouped-content">
         <IonHeader collapse="condense">
           <IonToolbar>
             <IonTitle size="large">Flugzeuge</IonTitle>
@@ -108,7 +110,7 @@ const ListPage: React.FC = () => {
                   {route && <p className="route-info">{route}</p>}
                   <p>
                     {formatAltitude(ac.alt_baro)}
-                    {ac.gs != null && ` · ${Math.round(ac.gs)} kt`}
+                    {ac.gs != null && ` · ${formatSpeed(ac.gs)}`}
                     {ac.track != null && ` · ${Math.round(ac.track)}°`}
                     {ac.squawk && ` · Squawk ${ac.squawk}`}
                   </p>
@@ -132,6 +134,15 @@ const ListPage: React.FC = () => {
           aircraft={selected}
           enrichment={selected ? enrichments[selected.hex] : undefined}
           presentingElement={presentingElement}
+          onShowOnMap={
+            selected
+              ? () => {
+                  showOnMap(selected.hex);
+                  setSelectedHex(null);
+                  history.push('/map');
+                }
+              : undefined
+          }
           onDismiss={() => setSelectedHex(null)}
         />
       </IonContent>

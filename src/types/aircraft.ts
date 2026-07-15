@@ -22,6 +22,15 @@ export interface Aircraft {
   messages?: number;
 }
 
+/** Ein Punkt der aufgezeichneten Positions-Historie eines Flugzeugs */
+export interface TrackPoint {
+  lon: number;
+  lat: number;
+  alt?: number | 'ground';
+  /** Zeitstempel (ms), wann der Punkt zuletzt bestätigt wurde */
+  t: number;
+}
+
 export interface AircraftResponse {
   now: number;
   messages: number;
@@ -61,9 +70,27 @@ export function metersFromFeet(feet: number): number {
   return Math.round(feet * 0.3048);
 }
 
-/** Höhe primär in Metern, mit Fuss in Klammern */
+export function kmhFromKnots(knots: number): number {
+  return Math.round(knots * 1.852);
+}
+
+/** Höhe in Metern über Meer */
 export function formatAltitude(alt?: number | 'ground'): string {
   if (alt === 'ground') return 'Am Boden';
   if (alt == null) return '–';
-  return `${metersFromFeet(alt).toLocaleString('de-CH')} m (${alt.toLocaleString('de-CH')} ft)`;
+  return `${metersFromFeet(alt).toLocaleString('de-CH')} m ü. M.`;
+}
+
+/** Geschwindigkeit in km/h */
+export function formatSpeed(knots?: number): string {
+  if (knots == null) return '–';
+  return `${kmhFromKnots(knots).toLocaleString('de-CH')} km/h`;
+}
+
+/** Steig-/Sinkrate in m/s (aus ft/min), mit Vorzeichen */
+export function formatVerticalRate(feetPerMin?: number): string {
+  if (feetPerMin == null) return '–';
+  const ms = feetPerMin * 0.00508;
+  const rounded = Math.round(ms * 10) / 10;
+  return `${rounded > 0 ? '+' : ''}${rounded.toLocaleString('de-CH')} m/s`;
 }

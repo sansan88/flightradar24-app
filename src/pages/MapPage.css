@@ -21,23 +21,46 @@
   backdrop-filter: blur(4px);
 }
 
+@media (prefers-color-scheme: dark) {
+  .map-overlay ion-chip {
+    background: rgba(28, 28, 30, 0.88);
+  }
+}
+
 .update-note {
   padding-inline-end: 16px;
   font-size: 13px;
 }
 
+/*
+ * Das Marker-Element umfasst nur das Icon, damit MapLibre dessen Zentrum
+ * exakt auf die Flugzeug-Position setzt. Die Labels sind absolut darunter
+ * positioniert und beeinflussen die Elementgrösse nicht. Wichtig: kein
+ * eigenes `position` setzen – das käme vor `.maplibregl-marker`
+ * (position: absolute) und würde die Verankerung der Marker zerstören.
+ */
 .plane-marker {
   display: flex;
-  flex-direction: column;
-  align-items: center;
   cursor: pointer;
 }
 
-.plane-marker svg {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+.plane-icon {
+  display: flex;
+}
+
+/* Im Dark Mode dunkle Label-Chips */
+@media (prefers-color-scheme: dark) {
+  .plane-label {
+    color: #f2f2f7;
+    background: rgba(28, 28, 30, 0.8);
+  }
 }
 
 .plane-labels {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -55,31 +78,3 @@
   white-space: nowrap;
 }
 
-.plane-popup {
-  font-size: 13px;
-  min-width: 190px;
-  color: #1a1a1a;
-}
-
-.popup-aircraft {
-  font-weight: 700;
-  font-size: 14px;
-  margin-bottom: 2px;
-}
-
-.popup-route {
-  color: #d52b1e;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.plane-popup div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 1px 0;
-}
-
-.plane-popup span {
-  color: #666;
-}

@@ -1,0 +1,12 @@
+/* Erklärtext unterhalb einer Inset-Liste (Ionic Best Practice: Text
+   ausserhalb der Liste), bündig mit dem Inhalt der Items.
+   Grouped Background siehe theme/variables.css (.grouped-content). */
+.settings-note {
+  margin: -8px 32px 24px;
+}
+
+.settings-note ion-note {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+}

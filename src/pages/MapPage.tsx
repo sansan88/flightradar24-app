@@ -13,33 +13,19 @@ import {
 import { airplaneOutline, warningOutline } from 'ionicons/icons';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { Aircraft } from '../types/aircraft';
-import { callsignOf, formatAltitude, metersFromFeet } from '../types/aircraft';
-import {
-  formatAircraftDetails,
-  formatRoute,
-  type Enrichment,
-} from '../services/adsbdbService';
+import type { Aircraft, TrackPoint } from '../types/aircraft';
+import { callsignOf, formatSpeed, metersFromFeet } from '../types/aircraft';
+import type { Enrichment } from '../services/adsbdbService';
+import AircraftDetailModal from '../components/AircraftDetailModal';
 import type { Settings } from '../services/settings';
+import { mapStyle, resolveMapLayer, type MapLayerKey } from '../services/mapLayers';
+import {
+  PLANE_SHAPES,
+  shapeForAircraft,
+  type PlaneShapeKey,
+} from '../services/planeIcons';
 import { useApp } from '../state/AppContext';
 import './MapPage.css';
-
-/** Swisstopo Landeskarte (WMTS, Web Mercator) */
-const SWISSTOPO_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    swisstopo: {
-      type: 'raster',
-      tiles: [
-        'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg',
-      ],
-      tileSize: 256,
-      maxzoom: 18,
-      attribution: '© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>',
-    },
-  },
-  layers: [{ id: 'swisstopo', type: 'raster', source: 'swisstopo' }],
-};
 
 /** Farbe nach barometrischer Höhe (Gelb = tief, Blau/Violett = hoch) */
 function altitudeColor(alt?: number | 'ground'): string {
@@ -48,9 +34,6 @@ function altitudeColor(alt?: number | 'ground'): string {
   const hue = 45 + ratio * 235; // 45 (gelb) → 280 (violett)
   return `hsl(${hue}, 85%, 45%)`;
 }
-
-const PLANE_SVG_PATH =
-  'M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z';
 
 /** Beschriftungszeilen am Icon gemäss Einstellungen zusammenstellen */
 function markerLabelLines(
@@ -72,78 +55,108 @@ function markerLabelLines(
         : ac.alt_baro != null
           ? `${metersFromFeet(ac.alt_baro).toLocaleString('de-CH')} m`
           : null,
-    speed: ac.gs != null ? `${Math.round(ac.gs)} kt` : null,
+    speed: ac.gs != null ? formatSpeed(ac.gs) : null,
     category: ac.category ?? null,
   };
-  return settings.markerAttributes
-    .map((key) => values[key])
-    .filter((v): v is string => Boolean(v))
-    .slice(0, Math.max(0, settings.markerLines));
+  return settings.markerLineTags
+    .map((keys) =>
+      keys
+        .map((key) => values[key])
+        .filter(Boolean)
+        .join(' · ')
+    )
+    .filter((line) => line.length > 0);
 }
 
-function planeElement(ac: Aircraft, lines: string[]): HTMLDivElement {
+function planeElement(ac: Aircraft, lines: string[], shape: PlaneShapeKey): HTMLDivElement {
   const el = document.createElement('div');
   el.className = 'plane-marker';
-  el.innerHTML = `
-    <svg viewBox="0 0 24 24" width="30" height="30">
-      <path d="${PLANE_SVG_PATH}" stroke="white" stroke-width="0.8" />
-    </svg>
-    <div class="plane-labels"></div>`;
-  updatePlaneElement(el, ac, lines);
+  el.innerHTML = `<div class="plane-icon"></div><div class="plane-labels"></div>`;
+  updatePlaneElement(el, ac, lines, shape);
   return el;
 }
 
-function updatePlaneElement(el: HTMLDivElement, ac: Aircraft, lines: string[]): void {
-  const svg = el.querySelector('svg') as SVGElement;
-  const path = el.querySelector('path') as SVGPathElement;
+function updatePlaneElement(
+  el: HTMLDivElement,
+  ac: Aircraft,
+  lines: string[],
+  shape: PlaneShapeKey
+): void {
+  const icon = el.querySelector('.plane-icon') as HTMLDivElement;
+  const def = PLANE_SHAPES[shape];
+
+  // Silhouette (neu) aufbauen, wenn sich der Typ ändert – z. B. sobald
+  // der ICAO-Typ von adsbdb nachgeladen wurde
+  if (el.dataset.shape !== shape) {
+    el.dataset.shape = shape;
+    icon.innerHTML = `
+      <svg viewBox="0 0 32 32" width="${def.size}" height="${def.size}">
+        <path class="plane-fill" d="${def.path}" />
+      </svg>`;
+  }
+
+  const svg = icon.querySelector('svg') as SVGElement;
+  const path = icon.querySelector('.plane-fill') as SVGPathElement;
   const labels = el.querySelector('.plane-labels') as HTMLDivElement;
-  svg.style.transform = `rotate(${ac.track ?? 0}deg)`;
+  svg.style.transform = def.rotates === false ? '' : `rotate(${ac.track ?? 0}deg)`;
   path.setAttribute('fill', altitudeColor(ac.alt_baro));
   const html = lines.map((line) => `<span class="plane-label">${line}</span>`).join('');
   if (labels.innerHTML !== html) labels.innerHTML = html;
 }
 
-function popupHtml(ac: Aircraft, enrichment?: Enrichment): string {
-  const route = formatRoute(enrichment?.route);
-  const aircraftInfo = formatAircraftDetails(enrichment?.details);
-  const header = [
-    aircraftInfo && `<div class="popup-aircraft">${aircraftInfo}</div>`,
-    route && `<div class="popup-route">${route}</div>`,
-  ]
-    .filter(Boolean)
-    .join('');
+/** ID von Source und Layer für die Track-Linie des ausgewählten Flugzeugs */
+const TRACK_ID = 'selected-track';
 
-  const rows: [string, string][] = [
-    ['Callsign', callsignOf(ac)],
-    ['Registration', enrichment?.details?.registration ?? '–'],
-    ['ICAO Hex', ac.hex.toUpperCase()],
-    ['Kategorie', ac.category ?? '–'],
-    ['Höhe', formatAltitude(ac.alt_baro)],
-    ['Geschwindigkeit', ac.gs != null ? `${Math.round(ac.gs)} kt` : '–'],
-    ['Kurs', ac.track != null ? `${Math.round(ac.track)}°` : '–'],
-    ['Steig-/Sinkrate', ac.baro_rate != null ? `${ac.baro_rate} ft/min` : '–'],
-    ['Squawk', ac.squawk ?? '–'],
-    ['Signal', ac.rssi != null ? `${ac.rssi} dBFS` : '–'],
-  ];
-  return `<div class="plane-popup">${header}${rows
-    .map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`)
-    .join('')}</div>`;
+const EMPTY_TRACK: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
+
+/**
+ * Track als Segmente aufbereiten, jedes nach der Höhe am Segmentende gefärbt
+ * (gleiche Farbskala wie die Flugzeug-Icons).
+ */
+function trackGeoJson(track: TrackPoint[]): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+  for (let i = 1; i < track.length; i++) {
+    features.push({
+      type: 'Feature',
+      properties: { color: altitudeColor(track[i].alt) },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [track[i - 1].lon, track[i - 1].lat],
+          [track[i].lon, track[i].lat],
+        ],
+      },
+    });
+  }
+  return { type: 'FeatureCollection', features };
 }
 
 const MapPage: React.FC = () => {
-  const { settings, filteredAircraft, enrichments, error, lastUpdate } = useApp();
+  const {
+    settings,
+    filteredAircraft,
+    enrichments,
+    tracks,
+    selectedHex,
+    setSelectedHex,
+    mapFocus,
+    error,
+    lastUpdate,
+  } = useApp();
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef(new Map<string, maplibregl.Marker>());
+  const appliedLayerRef = useRef<MapLayerKey | null>(null);
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
 
+    appliedLayerRef.current = resolveMapLayer(settings.mapLayer);
     const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: SWISSTOPO_STYLE,
-      center: [8.4, 47.1], // Schweiz
-      zoom: 7,
+      style: mapStyle(settings.mapLayer),
+      center: [8.6268, 47.6985], // Region Schaffhausen (s.geo.admin.ch/0nsm0qt6zo0v)
+      zoom: 11.3,
       attributionControl: { compact: true },
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
@@ -158,7 +171,28 @@ const MapPage: React.FC = () => {
       mapRef.current = null;
       markersRef.current.clear();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- nur beim Mount; Layer-Wechsel siehe unten
   }, []);
+
+  // Karten-Hintergrund wechseln, wenn die Einstellung ändert (Marker sind
+  // DOM-Elemente und überleben den Style-Wechsel). Bei «Automatisch» folgt
+  // die Karte zusätzlich live dem Hell-/Dunkel-Wechsel des Geräts.
+  useEffect(() => {
+    const applyLayer = () => {
+      const map = mapRef.current;
+      if (!map) return;
+      const resolved = resolveMapLayer(settings.mapLayer);
+      if (appliedLayerRef.current === resolved) return;
+      appliedLayerRef.current = resolved;
+      map.setStyle(mapStyle(resolved));
+    };
+
+    applyLayer();
+    if (settings.mapLayer !== 'auto') return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    media.addEventListener('change', applyLayer);
+    return () => media.removeEventListener('change', applyLayer);
+  }, [settings.mapLayer]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -173,19 +207,21 @@ const MapPage: React.FC = () => {
 
       const enrichment = enrichments[ac.hex];
       const lines = markerLabelLines(ac, settings, enrichment);
+      const shape = shapeForAircraft(ac, enrichment?.details?.icao_type);
       const existing = markers.get(ac.hex);
       if (existing) {
         existing.setLngLat([ac.lon, ac.lat]);
-        updatePlaneElement(existing.getElement() as HTMLDivElement, ac, lines);
-        existing.getPopup()?.setHTML(popupHtml(ac, enrichment));
+        updatePlaneElement(existing.getElement() as HTMLDivElement, ac, lines, shape);
       } else {
-        const marker = new maplibregl.Marker({ element: planeElement(ac, lines) })
+        const hex = ac.hex;
+        const element = planeElement(ac, lines, shape);
+        // Klick auf den Flieger: Detail-Sheet öffnen und Track-Linie zeigen
+        element.addEventListener('click', (e) => {
+          e.stopPropagation();
+          setSelectedHex(hex);
+        });
+        const marker = new maplibregl.Marker({ element })
           .setLngLat([ac.lon, ac.lat])
-          .setPopup(
-            new maplibregl.Popup({ offset: 18, closeButton: false }).setHTML(
-              popupHtml(ac, enrichment)
-            )
-          )
           .addTo(map);
         markers.set(ac.hex, marker);
       }
@@ -200,12 +236,69 @@ const MapPage: React.FC = () => {
     }
   }, [filteredAircraft, enrichments, settings]);
 
+  // Track-Linie des ausgewählten Flugzeugs zeichnen und bei jedem Poll
+  // verlängern; nach einem Style-Wechsel werden Source/Layer neu angelegt
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const apply = () => {
+      const track = selectedHex ? (tracks[selectedHex] ?? []) : [];
+      const data = track.length > 1 ? trackGeoJson(track) : EMPTY_TRACK;
+      const source = map.getSource(TRACK_ID) as maplibregl.GeoJSONSource | undefined;
+      if (source) {
+        source.setData(data);
+      } else {
+        map.addSource(TRACK_ID, { type: 'geojson', data });
+        map.addLayer({
+          id: TRACK_ID,
+          type: 'line',
+          source: TRACK_ID,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-color': ['get', 'color'],
+            'line-width': 3,
+            'line-opacity': 0.9,
+          },
+        });
+      }
+    };
+
+    if (map.isStyleLoaded()) {
+      apply();
+    } else {
+      // Style lädt noch (Start oder Layer-Wechsel) – nachziehen, sobald bereit
+      map.once('idle', apply);
+      return () => {
+        map.off('idle', apply);
+      };
+    }
+  }, [selectedHex, filteredAircraft, tracks, settings.mapLayer]);
+
+  // «Auf Karte anzeigen» aus der Liste: Karte auf das Flugzeug zentrieren
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapFocus) return;
+    const pos = markersRef.current.get(mapFocus.hex)?.getLngLat();
+    if (pos) {
+      map.flyTo({ center: pos, zoom: Math.max(map.getZoom(), 9) });
+    }
+  }, [mapFocus]);
+
   // Karte neu dimensionieren, wenn der Tab wieder sichtbar wird
   useEffect(() => {
     const onVisible = () => mapRef.current?.resize();
     window.addEventListener('resize', onVisible);
     return () => window.removeEventListener('resize', onVisible);
   }, []);
+
+  // Ausgewähltes Flugzeug live nachführen; verschwindet es aus dem Feed,
+  // bleibt der letzte Stand im Sheet sichtbar
+  const lastSelected = useRef<Aircraft | null>(null);
+  const selected = selectedHex
+    ? (filteredAircraft.find((ac) => ac.hex === selectedHex) ?? lastSelected.current)
+    : null;
+  if (selected) lastSelected.current = selected;
 
   const visibleCount = filteredAircraft.filter((ac) => ac.lat != null && ac.lon != null).length;
 
@@ -229,6 +322,12 @@ const MapPage: React.FC = () => {
             <IonLabel>{error ? 'Keine Verbindung' : `${visibleCount} sichtbar`}</IonLabel>
           </IonChip>
         </div>
+        <AircraftDetailModal
+          sheet
+          aircraft={selected}
+          enrichment={selected ? enrichments[selected.hex] : undefined}
+          onDismiss={() => setSelectedHex(null)}
+        />
       </IonContent>
     </IonPage>
   );

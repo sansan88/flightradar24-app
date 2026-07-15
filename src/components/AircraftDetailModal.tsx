@@ -4,6 +4,7 @@ import {
   IonButtons,
   IonContent,
   IonHeader,
+  IonIcon,
   IonItem,
   IonLabel,
   IonList,
@@ -13,12 +14,19 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/react';
+import { mapOutline } from 'ionicons/icons';
 import type { Aircraft } from '../types/aircraft';
-import { callsignOf, formatAltitude, metersFromFeet } from '../types/aircraft';
+import {
+  callsignOf,
+  formatAltitude,
+  formatSpeed,
+  formatVerticalRate,
+} from '../types/aircraft';
 import { AIRCRAFT_CATEGORIES } from '../types/aircraft';
 import {
   flagEmoji,
   formatAircraftDetails,
+  formatRoute,
   type Enrichment,
   type RouteAirport,
 } from '../services/adsbdbService';
@@ -27,7 +35,14 @@ import './AircraftDetailModal.css';
 interface Props {
   aircraft: Aircraft | null;
   enrichment?: Enrichment;
-  presentingElement: HTMLElement | null;
+  presentingElement?: HTMLElement | null;
+  /**
+   * Als Sheet-Modal darstellen (Karte): startet bei Breakpoint 0.25 mit
+   * kompakter Zusammenfassung, die Karte bleibt dahinter bedienbar.
+   */
+  sheet?: boolean;
+  /** Wenn gesetzt: «Karte»-Button in der Toolbar, der das Flugzeug auf der Karte zeigt */
+  onShowOnMap?: () => void;
   onDismiss: () => void;
 }
 
@@ -54,6 +69,8 @@ const AircraftDetailModal: React.FC<Props> = ({
   aircraft,
   enrichment,
   presentingElement,
+  sheet = false,
+  onShowOnMap,
   onDismiss,
 }) => {
   const route = enrichment?.route;
@@ -61,33 +78,62 @@ const AircraftDetailModal: React.FC<Props> = ({
   const ac = aircraft;
   const flag = flagEmoji(details?.registered_owner_country_iso_name);
   const aircraftInfo = formatAircraftDetails(details);
+  const routeInfo = formatRoute(route);
 
   return (
     <IonModal
       isOpen={ac !== null}
-      presentingElement={presentingElement ?? undefined}
       onDidDismiss={onDismiss}
+      {...(sheet
+        ? {
+            breakpoints: [0, 0.25, 0.5, 0.9],
+            initialBreakpoint: 0.25,
+            // Unterhalb dieses Breakpoints kein Backdrop – Karte bleibt bedienbar
+            backdropBreakpoint: 0.5,
+          }
+        : { presentingElement: presentingElement ?? undefined })}
     >
       <IonHeader>
         <IonToolbar>
           <IonTitle>{ac ? callsignOf(ac) : ''}</IonTitle>
-          <IonButtons slot="end">
+          <IonButtons slot="secondary">
             <IonButton onClick={onDismiss}>Schliessen</IonButton>
           </IonButtons>
+          {onShowOnMap && (
+            <IonButtons slot="primary">
+              <IonButton onClick={onShowOnMap}>
+                <IonIcon slot="start" icon={mapOutline} />
+                Karte
+              </IonButton>
+            </IonButtons>
+          )}
         </IonToolbar>
       </IonHeader>
-      <IonContent fullscreen>
+      <IonContent fullscreen className="grouped-content">
         {ac && (
           <>
-            <IonHeader collapse="condense">
-              <IonToolbar>
-                <IonTitle size="large">
-                  {flag ? `${flag} ` : ''}
-                  {callsignOf(ac)}
-                </IonTitle>
-              </IonToolbar>
-              {aircraftInfo && <div className="modal-subtitle">{aircraftInfo}</div>}
-            </IonHeader>
+            {sheet ? (
+              // Kompakte Zusammenfassung, sichtbar beim 0.25-Breakpoint
+              <div className="sheet-summary">
+                {aircraftInfo && <div className="sheet-aircraft">{aircraftInfo}</div>}
+                {routeInfo && <div className="sheet-route">{routeInfo}</div>}
+                <div className="sheet-stats">
+                  {formatAltitude(ac.alt_baro)}
+                  {ac.gs != null && ` · ${formatSpeed(ac.gs)}`}
+                  {ac.track != null && ` · ${Math.round(ac.track)}°`}
+                </div>
+              </div>
+            ) : (
+              <IonHeader collapse="condense">
+                <IonToolbar>
+                  <IonTitle size="large">
+                    {flag ? `${flag} ` : ''}
+                    {callsignOf(ac)}
+                  </IonTitle>
+                </IonToolbar>
+                {aircraftInfo && <div className="modal-subtitle">{aircraftInfo}</div>}
+              </IonHeader>
+            )}
 
             <IonList inset>
               <IonListHeader>
@@ -146,20 +192,12 @@ const AircraftDetailModal: React.FC<Props> = ({
               />
               <Row
                 label="Geschwindigkeit"
-                value={
-                  ac.gs != null
-                    ? `${Math.round(ac.gs * 1.852)} km/h (${Math.round(ac.gs)} kt)`
-                    : null
-                }
+                value={ac.gs != null ? formatSpeed(ac.gs) : null}
               />
               <Row label="Kurs" value={ac.track != null ? `${Math.round(ac.track)}°` : null} />
               <Row
                 label="Steig-/Sinkrate"
-                value={
-                  ac.baro_rate != null
-                    ? `${metersFromFeet(ac.baro_rate)} m/min (${ac.baro_rate} ft/min)`
-                    : null
-                }
+                value={ac.baro_rate != null ? formatVerticalRate(ac.baro_rate) : null}
               />
               <Row label="Squawk" value={ac.squawk} />
               <Row

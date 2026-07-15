@@ -1,11 +1,26 @@
-/* Ionic CSS Variablen: https://ionicframework.com/docs/theming/ */
+/* Ionic CSS Variablen: https://ionicframework.com/docs/theming/
+   Es gelten die Ionic-Standardfarben (primary etc.) ohne Overrides.
+   Dark Mode aktiviert sich automatisch nach Geräteeinstellung über den
+   Import von @ionic/react/css/palettes/dark.system.css in App.tsx. */
 
-:root {
-  /* Swiss Red als Primärfarbe */
-  --ion-color-primary: #d52b1e;
-  --ion-color-primary-rgb: 213, 43, 30;
-  --ion-color-primary-contrast: #ffffff;
-  --ion-color-primary-contrast-rgb: 255, 255, 255;
-  --ion-color-primary-shade: #bb261a;
-  --ion-color-primary-tint: #d94035;
+/* iOS grouped Background für Seiten mit Inset-Listen: Content abgesetzt
+   grau, die Listen-Karten hell – im Dark Mode invertiert wie in den
+   nativen iOS-Einstellungen. */
+.grouped-content {
+  --background: #f2f2f7;
+}
+
+/* Large-Title-Header im Content soll den Hintergrund durchscheinen lassen */
+.grouped-content ion-toolbar {
+  --background: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  .grouped-content {
+    --background: #000000;
+  }
+
+  .grouped-content ion-list {
+    --ion-item-background: #1c1c1e;
+  }
 }

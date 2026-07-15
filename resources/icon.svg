@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a6ff5"/>
+      <stop offset="1" stop-color="#0a3bb8"/>
+    </linearGradient>
+    <linearGradient id="trail" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffd60a"/>
+      <stop offset="1" stop-color="#b14cf0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- Radar-Ringe -->
+  <g fill="none" stroke="#ffffff" stroke-width="5">
+    <circle cx="512" cy="512" r="200" opacity="0.14"/>
+    <circle cx="512" cy="512" r="330" opacity="0.10"/>
+    <circle cx="512" cy="512" r="460" opacity="0.07"/>
+  </g>
+  <!-- Track-Linie (Höhenfarben) -->
+  <path d="M150 890 Q 330 760 425 615" fill="none" stroke="url(#trail)"
+        stroke-width="42" stroke-linecap="round"/>
+  <!-- Ionicons «airplane», Kurs Nordost -->
+  <g transform="translate(545,440) rotate(-45) scale(1.15) translate(-256,-256)">
+    <path fill="#ffffff" d="M186.62 464H160a16 16 0 0 1-14.57-22.6l64.46-142.25L113.1 297l-35.3 42.77C71.07 348.23 65.7 352 52 352H34.08a17.66 17.66 0 0 1-14.7-7.06c-2.38-3.21-4.72-8.65-2.44-16.41l19.82-71c.15-.53.33-1.06.53-1.58a.4.4 0 0 0 0-.15 15 15 0 0 1-.53-1.59l-19.84-71.45c-2.15-7.61.2-12.93 2.56-16.06a16.83 16.83 0 0 1 13.6-6.7H52c10.23 0 20.16 4.59 26 12l34.57 42.05 97.32-1.44-64.44-142A16 16 0 0 1 160 48h26.91a25 25 0 0 1 19.35 9.8l125.05 152 57.77-1.52c4.23-.23 15.95-.31 18.66-.31C463 208 496 225.94 496 256c0 9.46-3.78 27-29.07 38.16-14.93 6.6-34.85 9.94-59.21 9.94-2.68 0-14.37-.08-18.66-.31l-57.76-1.54-125.36 152a25 25 0 0 1-19.32 9.75"/>
+  </g>
+</svg>
