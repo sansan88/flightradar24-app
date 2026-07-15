@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'ch.sansan.flightradar',
-  appName: 'FlightRadar',
+  appName: 'SkyPi',
   webDir: 'dist',
   ios: {
     contentInset: 'always',

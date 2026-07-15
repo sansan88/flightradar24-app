@@ -1,4 +1,11 @@
-# FlightRadar App
+# SkyPi — Live-Flugradar im Heimnetz
+
+**App Name:** SkyPi · **App ID:** `ch.sansan.flightradar` ·
+**Repo:** [sansan88/flightradar24-app](https://github.com/sansan88/flightradar24-app)
+
+📄 [Datenschutzrichtlinie](PRIVACY.md) · 🛟 [Support](SUPPORT.md) —
+privates Open-Source-Projekt: [Issues](https://github.com/sansan88/flightradar24-app/issues)
+und [Pull Requests](https://github.com/sansan88/flightradar24-app/pulls) willkommen.
 
 Ionic React App (WebApp + native iPhone App via Capacitor), die den lokalen
 Aircraft Service eines Raspberry Pi abruft und alle empfangenen Flugzeuge live
@@ -7,6 +14,70 @@ auf der **Swisstopo-Karte** (MapLibre GL) anzeigt.
 Quelle der Flugdaten: [sansan88/flightradar24](https://github.com/sansan88/flightradar24)
 (Raspberry Pi mit ADS-B Empfänger, dump1090) —
 `http://<pi-ip>:8080/data/aircraft.json`
+
+## App Store
+
+**Werbetext:**
+
+> Dein persönlicher Flugradar: zeigt live alle Flugzeuge, die dein Raspberry Pi
+> mit ADS-B-Empfänger auffängt – auf der Swisstopo-Karte, mit Flugzeug- und
+> Routeninfos.
+
+**Beschreibung:**
+
+> SkyPi macht deinen Raspberry Pi mit ADS-B-Empfänger zur persönlichen
+> Flugverfolgungs-Zentrale. Die App verbindet sich direkt mit deinem Pi im
+> lokalen Netzwerk und zeigt alle empfangenen Flugzeuge live auf der Karte –
+> ganz ohne Konto, Cloud oder Abo.
+>
+> **DEIN EIGENER FLUGRADAR**
+> Empfange Flugdaten direkt von deinem eigenen ADS-B-Empfänger
+> (dump1090/readsb) und sieh in Echtzeit, was über deinem Zuhause fliegt. Das
+> Aktualisierungsintervall ist frei wählbar (1–30 Sekunden).
+>
+> **LIVE-KARTE**
+> - Alle Flugzeuge mit Position auf der Karte, ausgerichtet nach Flugrichtung
+> - Farbcodierung nach Flughöhe – auf einen Blick erkennbar, wer hoch oder tief
+>   unterwegs ist
+> - Frei wählbare Kartenhintergründe: Swisstopo Landeskarte (farbig oder grau),
+>   Swisstopo Luftbild, OpenStreetMap sowie helle und dunkle Karten – auf Wunsch
+>   automatisch passend zum Hell-/Dunkelmodus deines Geräts
+> - Konfigurierbare Beschriftung direkt am Flugzeug-Symbol: bis zu drei Zeilen
+>   mit Callsign, Registration, Flugzeugtyp, Route, Höhe, Geschwindigkeit oder
+>   Kategorie
+> - Verbindungsstatus und Datenquelle jederzeit sichtbar
+>
+> **FLUGZEUG- UND ROUTENINFOS**
+> Zu jedem Flugzeug lädt die App Zusatzinformationen von adsbdb.com: Hersteller,
+> Typ, Betreiber, Registration sowie die Route mit Abflug- und Zielflughafen
+> inklusive Länderflaggen. Ein Tipp auf ein Flugzeug öffnet die Detailansicht
+> mit allen Daten – Höhe, Geschwindigkeit, Kurs, Squawk und mehr.
+>
+> **LISTENANSICHT**
+> Alle empfangenen Flugzeuge übersichtlich in einer Liste – auch solche, die
+> (noch) keine Position senden. Aktive Flugzeuge mit Positionsdaten stehen
+> automatisch zuoberst.
+>
+> **FLEXIBLE EINSTELLUNGEN**
+> - IP-Adresse und Port deines Raspberry Pi frei konfigurierbar
+> - Aktualisierungsintervall von 1 bis 30 Sekunden
+> - Filter nach ADS-B-Kategorien (z. B. leichte Flugzeuge, Verkehrsflugzeuge,
+>   Helikopter)
+> - Höhenangaben in Metern
+>
+> **PRIVAT UND LOKAL**
+> Deine Flugdaten bleiben in deinem Netzwerk: Die App liest sie direkt vom
+> Raspberry Pi, ohne Umweg über fremde Server. Es ist kein Konto nötig, und es
+> werden keine Nutzerdaten gesammelt.
+>
+> **VORAUSSETZUNGEN**
+> Du benötigst einen ADS-B-Empfänger im lokalen Netzwerk (z. B. Raspberry Pi
+> mit DVB-T-Stick und dump1090 oder readsb), der Flugdaten im Standardformat
+> aircraft.json bereitstellt. Die App ist die ideale Ergänzung zu deinem
+> bestehenden ADS-B-Setup.
+>
+> Perfekt für Planespotter, Aviatik-Fans und alle, die wissen wollen, was
+> gerade über ihnen fliegt.
 
 ## Features
 
