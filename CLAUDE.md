@@ -47,4 +47,11 @@ npm run ios      # build + cap sync ios + öffnet Xcode
 - Höhenangaben werden in Metern angezeigt (Quelle liefert Fuss).
 - Alles lokal und privat: keine Cloud, kein Konto, keine Analytics — keine
   Abhängigkeiten einbauen, die Nutzerdaten an fremde Server senden
-  (Ausnahme: adsbdb.com für Flugzeug-/Routeninfos, Swisstopo/OSM-Kacheln).
+  (Ausnahme: adsbdb.com für Flugzeug-/Routeninfos, Swisstopo/OSM-Kacheln,
+  meteoschweiz.admin.ch für das Niederschlagsradar).
+- **Niederschlagsradar**: `src/services/meteoRadarService.ts` nutzt die
+  interne (undokumentierte) JSON-API der MeteoSchweiz-Web-App
+  (`/product/output/radar/rzc/radar_rzc.<YYYYMMDD_HHMM>.json`, UTC, 5-Min-
+  Raster, bei 404 schrittweise zurückgehen). Der Shape-Decoder ist dem
+  MeteoSchweiz-JS-Bundle nachgebaut — kann bei Format-Änderungen brechen.
+  Im Web-Dev proxied Vite `/meteo/*` dorthin (keine CORS-Header).

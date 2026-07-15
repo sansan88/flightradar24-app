@@ -1,0 +1,21 @@
+/* Gehäuse der simulierten 32×32 RGB-LED-Matrix */
+.led-bezel {
+  /* Auf dem Smartphone bewusst schmaler als die Seite: 16px Rand links/rechts */
+  max-width: min(380px, calc(100% - 32px));
+  margin: 16px auto;
+  padding: 14px;
+  background: linear-gradient(160deg, #23232a, #121216);
+  border-radius: 18px;
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 2px #000;
+}
+
+.led-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  background: #000;
+}

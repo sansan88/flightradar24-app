@@ -1,0 +1,26 @@
+/* App-Kopf oberhalb der Inset-Listen; Grouped Background siehe
+   theme/variables.css (.grouped-content). */
+.info-hero {
+  text-align: center;
+  padding: 32px 16px 8px;
+}
+
+.info-hero-icon {
+  font-size: 56px;
+  color: var(--ion-color-primary);
+}
+
+.info-hero h1 {
+  margin: 8px 0 4px;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.info-hero p {
+  margin: 0 0 8px;
+  color: var(--ion-color-medium);
+}
+
+.info-hero ion-note {
+  font-size: 13px;
+}

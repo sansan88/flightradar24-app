@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  IonButton,
+  IonButtons,
   IonChip,
   IonContent,
   IonHeader,
@@ -10,7 +12,7 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/react';
-import { airplaneOutline, warningOutline } from 'ionicons/icons';
+import { airplaneOutline, rainy, warningOutline } from 'ionicons/icons';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreWorkerSource from 'maplibre-gl/dist/maplibre-gl-csp-worker.js?raw';
@@ -19,6 +21,7 @@ import { callsignOf, formatSpeed, metersFromFeet } from '../types/aircraft';
 import type { Enrichment } from '../services/adsbdbService';
 import AircraftDetailModal from '../components/AircraftDetailModal';
 import type { Settings } from '../services/settings';
+import { fetchLatestRadar, type RadarResult } from '../services/meteoRadarService';
 import { mapStyle, resolveMapLayer, type MapLayerKey } from '../services/mapLayers';
 import {
   PLANE_SHAPES,
@@ -117,6 +120,15 @@ function updatePlaneElement(
 /** ID von Source und Layer für die Track-Linie des ausgewählten Flugzeugs */
 const TRACK_ID = 'selected-track';
 
+/** ID von Source und Layer für das Niederschlagsradar (MeteoSchweiz) */
+const RADAR_ID = 'precipitation-radar';
+
+/**
+ * Das RZC-Radarbild wird alle 5 Minuten neu publiziert (mit ~4–5 Min
+ * Verzug) — jede Minute nachschauen, ob ein neueres Frame verfügbar ist
+ */
+const RADAR_REFRESH_MS = 60 * 1000;
+
 const EMPTY_TRACK: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
 /**
@@ -157,6 +169,9 @@ const MapPage: React.FC = () => {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef(new Map<string, maplibregl.Marker>());
   const appliedLayerRef = useRef<MapLayerKey | null>(null);
+  const [showRadar, setShowRadar] = useState(false);
+  const [radar, setRadar] = useState<RadarResult | null>(null);
+  const radarTimeRef = useRef<Date | undefined>(undefined);
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
@@ -285,6 +300,71 @@ const MapPage: React.FC = () => {
     }
   }, [selectedHex, filteredAircraft, tracks, settings.mapLayer]);
 
+  // Niederschlagsradar laden, solange die Wetterfunktion aktiv ist; danach
+  // regelmässig prüfen, ob MeteoSchweiz ein neueres Frame publiziert hat
+  useEffect(() => {
+    if (!showRadar) {
+      radarTimeRef.current = undefined;
+      setRadar(null);
+      return;
+    }
+    let cancelled = false;
+    const load = () => {
+      fetchLatestRadar(radarTimeRef.current)
+        .then((result) => {
+          if (cancelled || !result) return;
+          radarTimeRef.current = result.time;
+          setRadar(result);
+        })
+        .catch((err) => console.warn('Niederschlagsradar konnte nicht geladen werden', err));
+    };
+    load();
+    const interval = window.setInterval(load, RADAR_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [showRadar]);
+
+  // Radar-Overlay auf der Karte nachführen; nach einem Style-Wechsel werden
+  // Source/Layer neu angelegt. Liegt unter der Track-Linie und den Markern.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const apply = () => {
+      const source = map.getSource(RADAR_ID) as maplibregl.GeoJSONSource | undefined;
+      if (!radar) {
+        if (map.getLayer(RADAR_ID)) map.removeLayer(RADAR_ID);
+        if (source) map.removeSource(RADAR_ID);
+        return;
+      }
+      if (source) {
+        source.setData(radar.geojson);
+      } else {
+        map.addSource(RADAR_ID, { type: 'geojson', data: radar.geojson });
+        map.addLayer(
+          {
+            id: RADAR_ID,
+            type: 'fill',
+            source: RADAR_ID,
+            paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.55 },
+          },
+          map.getLayer(TRACK_ID) ? TRACK_ID : undefined
+        );
+      }
+    };
+
+    if (map.isStyleLoaded()) {
+      apply();
+    } else {
+      map.once('idle', apply);
+      return () => {
+        map.off('idle', apply);
+      };
+    }
+  }, [radar, settings.mapLayer]);
+
   // «Auf Karte anzeigen» aus der Liste: Karte auf das Flugzeug zentrieren
   useEffect(() => {
     const map = mapRef.current;
@@ -316,7 +396,16 @@ const MapPage: React.FC = () => {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>FlightRadar</IonTitle>
+          <IonButtons slot="start">
+            <IonButton
+              onClick={() => setShowRadar((value) => !value)}
+              color={showRadar ? 'primary' : 'medium'}
+              aria-label="Niederschlagsradar ein-/ausblenden"
+            >
+              <IonIcon slot="icon-only" icon={rainy} />
+            </IonButton>
+          </IonButtons>
+          <IonTitle>SkyPi</IonTitle>
           {lastUpdate && (
             <IonNote slot="end" className="update-note">
               {new Date(lastUpdate).toLocaleTimeString('de-CH')}
@@ -331,6 +420,14 @@ const MapPage: React.FC = () => {
             <IonIcon icon={error ? warningOutline : airplaneOutline} />
             <IonLabel>{error ? 'Keine Verbindung' : `${visibleCount} sichtbar`}</IonLabel>
           </IonChip>
+          {showRadar && radar && (
+            <IonChip color="medium">
+              <IonIcon icon={rainy} />
+              <IonLabel>
+                {radar.time.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}
+              </IonLabel>
+            </IonChip>
+          )}
         </div>
         <AircraftDetailModal
           sheet

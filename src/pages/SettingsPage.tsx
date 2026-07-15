@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   IonContent,
   IonHeader,
@@ -23,6 +23,11 @@ import './SettingsPage.css';
 
 const SettingsPage: React.FC = () => {
   const { settings, updateSettings, error, lastUpdate } = useApp();
+  // Entwurfswerte während des Tippens: Das 2-s-Polling rendert die Seite
+  // laufend neu; ohne per-Tastendruck synchronisierten Wert würde IonInput
+  // das Feld dabei auf den alten gespeicherten Wert zurücksetzen.
+  const [ipDraft, setIpDraft] = useState<string | null>(null);
+  const [portDraft, setPortDraft] = useState<string | null>(null);
 
   return (
     <IonPage>
@@ -47,8 +52,12 @@ const SettingsPage: React.FC = () => {
                 labelPlacement="fixed"
                 inputmode="decimal"
                 placeholder="192.168.1.174"
-                value={settings.ip}
-                onIonChange={(e) => updateSettings({ ip: (e.detail.value ?? '').trim() })}
+                value={ipDraft ?? settings.ip}
+                onIonInput={(e) => setIpDraft(e.detail.value ?? '')}
+                onIonChange={(e) => {
+                  updateSettings({ ip: (e.detail.value ?? '').trim() });
+                  setIpDraft(null);
+                }}
               />
             </IonItem>
             <IonItem>
@@ -57,12 +66,14 @@ const SettingsPage: React.FC = () => {
                 labelPlacement="fixed"
                 type="number"
                 placeholder="8080"
-                value={settings.port}
+                value={portDraft ?? settings.port}
+                onIonInput={(e) => setPortDraft(e.detail.value ?? '')}
                 onIonChange={(e) => {
                   const port = parseInt(e.detail.value ?? '', 10);
                   if (!Number.isNaN(port) && port > 0 && port <= 65535) {
                     updateSettings({ port });
                   }
+                  setPortDraft(null);
                 }}
               />
             </IonItem>
