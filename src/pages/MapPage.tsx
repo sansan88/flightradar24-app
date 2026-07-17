@@ -11,6 +11,7 @@ import {
   IonPage,
   IonTitle,
   IonToolbar,
+  useIonRouter,
 } from '@ionic/react';
 import { airplaneOutline, rainy, warningOutline } from 'ionicons/icons';
 import maplibregl from 'maplibre-gl';
@@ -18,11 +19,16 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreWorkerSource from 'maplibre-gl/dist/maplibre-gl-csp-worker.js?raw';
 import type { Aircraft, TrackPoint } from '../types/aircraft';
 import { callsignOf, formatSpeed, metersFromFeet } from '../types/aircraft';
-import type { Enrichment } from '../services/adsbdbService';
+import type { Enrichment, RouteAirport } from '../services/adsbdbService';
 import AircraftDetailModal from '../components/AircraftDetailModal';
 import type { Settings } from '../services/settings';
 import { fetchLatestRadar, type RadarResult } from '../services/meteoRadarService';
-import { mapStyle, resolveMapLayer, type MapLayerKey } from '../services/mapLayers';
+import {
+  mapStyle,
+  resolveMapLayer,
+  transformTileRequest,
+  type MapLayerKey,
+} from '../services/mapLayers';
 import {
   PLANE_SHAPES,
   shapeForAircraft,
@@ -120,6 +126,9 @@ function updatePlaneElement(
 /** ID von Source und Layer für die Track-Linie des ausgewählten Flugzeugs */
 const TRACK_ID = 'selected-track';
 
+/** ID von Source und Layer für die Routen-Linien (Abflug-/Zielflughafen) */
+const ROUTE_ID = 'selected-route';
+
 /** ID von Source und Layer für das Niederschlagsradar (MeteoSchweiz) */
 const RADAR_ID = 'precipitation-radar';
 
@@ -153,6 +162,79 @@ function trackGeoJson(track: TrackPoint[]): GeoJSON.FeatureCollection {
   return { type: 'FeatureCollection', features };
 }
 
+/**
+ * Grosskreis-Bogen zwischen zwei Punkten (Slerp auf der Kugel), damit auch
+ * weit entfernte Flughäfen mit realistischer Flugbahn verbunden werden.
+ */
+function greatCircle(from: [number, number], to: [number, number]): [number, number][] {
+  const rad = Math.PI / 180;
+  const [lon1, lat1] = [from[0] * rad, from[1] * rad];
+  const [lon2, lat2] = [to[0] * rad, to[1] * rad];
+
+  const toVec = (lon: number, lat: number): [number, number, number] => [
+    Math.cos(lat) * Math.cos(lon),
+    Math.cos(lat) * Math.sin(lon),
+    Math.sin(lat),
+  ];
+  const a = toVec(lon1, lat1);
+  const b = toVec(lon2, lat2);
+  const dot = Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+  const angle = Math.acos(dot);
+  if (angle < 1e-6) return [from, to];
+
+  const steps = Math.max(2, Math.ceil((angle / rad) * 2)); // ~1 Punkt pro 0.5°
+  const coords: [number, number][] = [];
+  let prevLon = from[0];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const f1 = Math.sin((1 - t) * angle) / Math.sin(angle);
+    const f2 = Math.sin(t * angle) / Math.sin(angle);
+    const x = f1 * a[0] + f2 * b[0];
+    const y = f1 * a[1] + f2 * b[1];
+    const z = f1 * a[2] + f2 * b[2];
+    let lon = Math.atan2(y, x) / rad;
+    const lat = Math.atan2(z, Math.hypot(x, y)) / rad;
+    // Antimeridian: Sprünge von ±360° vermeiden, damit die Linie nicht
+    // quer über die Karte läuft
+    while (lon - prevLon > 180) lon -= 360;
+    while (lon - prevLon < -180) lon += 360;
+    prevLon = lon;
+    coords.push([lon, lat]);
+  }
+  return coords;
+}
+
+/**
+ * Gestrichelte Linien vom Abflughafen zum Anfang der aufgezeichneten
+ * Track-Linie und vom Flugzeug zum Zielflughafen (sofern adsbdb
+ * Koordinaten liefert). Die Abflug-Linie endet am ersten Track-Punkt —
+ * ab dort übernimmt der farbige Routenverlauf.
+ */
+function routeGeoJson(
+  plane: [number, number],
+  trackStart: [number, number],
+  origin?: RouteAirport,
+  destination?: RouteAirport
+): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+  const leg = (airport: RouteAirport | undefined, kind: 'origin' | 'destination') => {
+    if (airport?.latitude == null || airport?.longitude == null) return;
+    const airportPos: [number, number] = [airport.longitude, airport.latitude];
+    features.push({
+      type: 'Feature',
+      properties: { kind },
+      geometry: {
+        type: 'LineString',
+        coordinates:
+          kind === 'origin' ? greatCircle(airportPos, trackStart) : greatCircle(plane, airportPos),
+      },
+    });
+  };
+  leg(origin, 'origin');
+  leg(destination, 'destination');
+  return { type: 'FeatureCollection', features };
+}
+
 const MapPage: React.FC = () => {
   const {
     settings,
@@ -165,6 +247,7 @@ const MapPage: React.FC = () => {
     error,
     lastUpdate,
   } = useApp();
+  const router = useIonRouter();
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef(new Map<string, maplibregl.Marker>());
@@ -181,8 +264,9 @@ const MapPage: React.FC = () => {
       container: mapContainer.current,
       style: mapStyle(settings.mapLayer),
       center: [8.6268, 47.6985], // Region Schaffhausen (s.geo.admin.ch/0nsm0qt6zo0v)
-      zoom: 11.3,
+      zoom: 9.3,
       attributionControl: { compact: true },
+      transformRequest: transformTileRequest,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
@@ -300,6 +384,69 @@ const MapPage: React.FC = () => {
     }
   }, [selectedHex, filteredAircraft, tracks, settings.mapLayer]);
 
+  // Gestrichelte Routen-Linien des ausgewählten Flugzeugs (Abflughafen →
+  // Flugzeug → Zielflughafen) gemäss adsbdb-Koordinaten; wandern bei jedem
+  // Poll mit der aktuellen Position mit
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const apply = () => {
+      const ac = selectedHex ? filteredAircraft.find((a) => a.hex === selectedHex) : undefined;
+      const route = selectedHex ? enrichments[selectedHex]?.route : undefined;
+      const track = selectedHex ? (tracks[selectedHex] ?? []) : [];
+      let data = EMPTY_TRACK;
+      if (ac?.lat != null && ac?.lon != null && route) {
+        const plane: [number, number] = [ac.lon, ac.lat];
+        // Abflug-Linie endet am ersten aufgezeichneten Track-Punkt statt
+        // an der aktuellen Position, damit sie den Routenverlauf fortsetzt
+        const trackStart: [number, number] = track.length
+          ? [track[0].lon, track[0].lat]
+          : plane;
+        data = routeGeoJson(plane, trackStart, route.origin, route.destination);
+      }
+      const source = map.getSource(ROUTE_ID) as maplibregl.GeoJSONSource | undefined;
+      if (source) {
+        source.setData(data);
+      } else {
+        map.addSource(ROUTE_ID, { type: 'geojson', data });
+        map.addLayer(
+          {
+            id: ROUTE_ID,
+            type: 'line',
+            source: ROUTE_ID,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              // Zurückgelegte Strecke (ab Abflughafen) gedeckter als die
+              // verbleibende Strecke zum Ziel
+              'line-color': [
+                'match',
+                ['get', 'kind'],
+                'origin',
+                '#8e9aaf',
+                '#4c6ef5',
+              ],
+              'line-width': 2,
+              'line-opacity': 0.85,
+              'line-dasharray': [2, 3],
+            },
+          },
+          // Unter der Track-Linie einordnen, damit diese lesbar bleibt
+          map.getLayer(TRACK_ID) ? TRACK_ID : undefined
+        );
+      }
+    };
+
+    if (map.isStyleLoaded()) {
+      apply();
+    } else {
+      map.once('idle', apply);
+      return () => {
+        map.off('idle', apply);
+      };
+    }
+  }, [selectedHex, filteredAircraft, enrichments, tracks, settings.mapLayer]);
+
   // Niederschlagsradar laden, solange die Wetterfunktion aktiv ist; danach
   // regelmässig prüfen, ob MeteoSchweiz ein neueres Frame publiziert hat
   useEffect(() => {
@@ -416,7 +563,10 @@ const MapPage: React.FC = () => {
       <IonContent scrollY={false}>
         <div className="map-container" ref={mapContainer} />
         <div className="map-overlay">
-          <IonChip color={error ? 'danger' : 'primary'}>
+          <IonChip
+            color={error ? 'danger' : 'primary'}
+            onClick={error ? () => router.push('/settings') : undefined}
+          >
             <IonIcon icon={error ? warningOutline : airplaneOutline} />
             <IonLabel>{error ? 'Keine Verbindung' : `${visibleCount} sichtbar`}</IonLabel>
           </IonChip>

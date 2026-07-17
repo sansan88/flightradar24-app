@@ -24,8 +24,11 @@ export async function fetchAircraft(settings: Settings): Promise<AircraftRespons
       : (response.data as AircraftResponse);
   }
 
-  // Im Browser-Dev-Modus über den Vite-Proxy gehen (der Pi sendet keine CORS-Header)
-  const webUrl = import.meta.env.DEV ? '/data/aircraft.json' : url;
+  // Im Browser-Dev-Modus über den Vite-Dev-Proxy gehen (der Pi sendet keine
+  // CORS-Header); das Ziel wird per `pi`-Parameter aus den Settings gesetzt
+  const webUrl = import.meta.env.DEV
+    ? `/data/aircraft.json?pi=${encodeURIComponent(`${settings.ip}:${settings.port}`)}`
+    : url;
   const response = await fetch(webUrl, { signal: AbortSignal.timeout(5000) });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);

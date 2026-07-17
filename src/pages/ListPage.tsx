@@ -28,7 +28,7 @@ function isActive(ac: Aircraft): boolean {
 }
 
 const ListPage: React.FC = () => {
-  const { filteredAircraft, enrichments, messages, error, showOnMap } = useApp();
+  const { filteredAircraft, enrichments, messages, showOnMap } = useApp();
   const [selectedHex, setSelectedHex] = useState<string | null>(null);
   const history = useHistory();
 
@@ -77,12 +77,6 @@ const ListPage: React.FC = () => {
           <IonRefresherContent />
         </IonRefresher>
 
-        {error && (
-          <IonItem color="danger" lines="none">
-            <IonLabel>Keine Verbindung zum Aircraft Service: {error}</IonLabel>
-          </IonItem>
-        )}
-
         <IonList inset>
           {sorted.map((ac) => {
             const enrichment = enrichments[ac.hex];
@@ -120,7 +114,7 @@ const ListPage: React.FC = () => {
           })}
         </IonList>
 
-        {sorted.length === 0 && !error && (
+        {sorted.length === 0 && (
           <div className="ion-text-center ion-padding">
             <IonNote>Keine Flugzeuge empfangen</IonNote>
           </div>

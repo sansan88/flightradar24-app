@@ -27,6 +27,8 @@ import RetroPage from './pages/RetroPage';
 import ListPage from './pages/ListPage';
 import SettingsPage from './pages/SettingsPage';
 import InfoPage from './pages/InfoPage';
+import WelcomeScreen from './components/WelcomeScreen';
+import ConnectionToast from './components/ConnectionToast';
 import { AppProvider } from './state/AppContext';
 
 /* Ionic Core CSS */
@@ -96,6 +98,8 @@ const App: React.FC = () => {
           </IonTabBar>
         </IonTabs>
       </IonReactRouter>
+      <WelcomeScreen />
+      <ConnectionToast />
     </AppProvider>
   </IonApp>
   );

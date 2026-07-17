@@ -18,6 +18,10 @@ export interface Settings {
    * (leer = Zeile ausblenden).
    */
   markerLineTags: string[][];
+  /** Demomodus: simulierte Flugzeuge statt Pi-Service anzeigen */
+  demoMode: boolean;
+  /** Ersteinrichtung (Welcome Screen) abgeschlossen */
+  setupCompleted: boolean;
 }
 
 /** Verfügbare Attribute für die Beschriftung am Flugzeug-Icon */
@@ -36,11 +40,13 @@ export const MARKER_LINE_COUNT = 3;
 
 export const DEFAULT_SETTINGS: Settings = {
   mapLayer: 'auto',
-  ip: '192.168.1.174',
+  ip: '192.168.1.100',
   port: 8080,
   refreshInterval: 2,
   categories: [],
   markerLineTags: [['callsign'], [], []],
+  demoMode: false,
+  setupCompleted: false,
 };
 
 const STORAGE_KEY = 'flightradar-settings';
@@ -72,10 +78,20 @@ export async function loadSettings(): Promise<Settings> {
           return key ? [key] : [];
         });
       }
+      // Migration: entfernte Carto-Layer auf die Swisstopo-Pendants umlegen
+      if (stored.mapLayer === ('carto-light' as string)) {
+        stored.mapLayer = 'swisstopo-color';
+      } else if (stored.mapLayer === ('carto-dark' as string)) {
+        stored.mapLayer = 'swisstopo-grey';
+      }
       return {
         ...DEFAULT_SETTINGS,
         ...stored,
         markerLineTags: lineTags ?? DEFAULT_SETTINGS.markerLineTags,
+        // Bestehende Installationen (Settings vor Einführung des Welcome
+        // Screens gespeichert) gelten als bereits eingerichtet.
+        setupCompleted: stored.setupCompleted ?? true,
+        demoMode: stored.demoMode ?? false,
       };
     }
   } catch (err) {
@@ -86,6 +102,11 @@ export async function loadSettings(): Promise<Settings> {
 
 export async function saveSettings(settings: Settings): Promise<void> {
   await Preferences.set({ key: STORAGE_KEY, value: JSON.stringify(settings) });
+}
+
+/** Gespeicherte Einstellungen vom Gerät entfernen (Werkszustand) */
+export async function clearStoredSettings(): Promise<void> {
+  await Preferences.remove({ key: STORAGE_KEY });
 }
 
 export function aircraftUrl(settings: Settings): string {

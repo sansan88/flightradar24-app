@@ -2,8 +2,8 @@
  * App Store Screenshots mit Playwright.
  *
  * Emuliert ein iPhone 13 Pro Max (Viewport 428×926 @3x) und erzeugt damit
- * Screenshots in exakt 1284×2778 px – eines der von App Store Connect
- * akzeptierten iPhone-6,5/6,7-Zoll-Formate.
+ * Screenshots in exakt 1284×2778 px – das von App Store Connect für diese
+ * App verlangte iPhone-6,5-Zoll-Format; iPad in 2048×2732 (13 Zoll).
  *
  * Der Raspberry-Pi-Feed (/data/aircraft.json) und api.adsbdb.com werden
  * gemockt: eine kleine simulierte Flotte bewegt sich realistisch über die
@@ -96,6 +96,22 @@ const FLEET = [
     route: null,
   },
   {
+    // Sinkender Langstreckenflug → erfüllt den Anflug-Filter der Retro-Anzeige
+    // (Kategorie A5, geom_rate < -0.1, unter 15 000 ft)
+    hex: '4b1620', flight: 'SWR161', lat: 47.671, lon: 8.545, track: 196,
+    alt: 9_800, gs: 322, rate: -1_750, squawk: '1327', category: 'A5', rssi: -6.9,
+    details: {
+      type: '777-3DE ER', icao_type: 'B77W', manufacturer: 'Boeing',
+      registration: 'HB-JNB', registered_owner: 'Swiss International Air Lines',
+      registered_owner_country_name: 'Switzerland', registered_owner_country_iso_name: 'CH',
+    },
+    route: {
+      airline: { name: 'Swiss International Air Lines', icao: 'SWR', iata: 'LX' },
+      origin: { iata_code: 'BKK', icao_code: 'VTBS', name: 'Suvarnabhumi Airport', municipality: 'Bangkok', country_name: 'Thailand' },
+      destination: { iata_code: 'ZRH', icao_code: 'LSZH', name: 'Zürich Airport', municipality: 'Zürich', country_name: 'Switzerland' },
+    },
+  },
+  {
     hex: '4b43a9', flight: 'REGA3', lat: 47.728, lon: 8.664, track: 47,
     alt: 2_800, gs: 128, rate: 0, squawk: '7000', category: 'A7', rssi: -15.6,
     details: {
@@ -133,6 +149,7 @@ function aircraftJson(state) {
         gs: p.gs,
         track: p.track,
         baro_rate: p.rate,
+        geom_rate: p.rate,
         squawk: p.squawk,
         category: p.category,
         lat,
@@ -153,7 +170,7 @@ function aircraftJson(state) {
  */
 async function mockRoutes(context) {
   const state = { start: Date.now() };
-  await context.route('**/data/aircraft.json', (route) =>
+  await context.route('**/data/aircraft.json*', (route) =>
     route.fulfill({ json: aircraftJson(state) })
   );
   await context.route('https://api.adsbdb.com/v0/callsign/**', (route) => {
@@ -166,13 +183,24 @@ async function mockRoutes(context) {
     }
   });
   await context.route('https://api.adsbdb.com/v0/aircraft/**', (route) => {
-    const hex = route.request().url().split('/').pop()?.toLowerCase();
+    // Kombi-Call: /v0/aircraft/<hex>?callsign=<cs> → aircraft + flightroute
+    const url = new URL(route.request().url());
+    const hex = url.pathname.split('/').pop()?.toLowerCase();
     const plane = FLEET.find((p) => p.hex === hex);
-    if (plane) {
-      route.fulfill({ json: { response: { aircraft: plane.details } } });
-    } else {
+    if (!plane) {
       route.fulfill({ status: 404, json: { response: 'unknown aircraft' } });
+      return;
     }
+    const response = { aircraft: plane.details };
+    if (url.searchParams.has('callsign') && plane.route) {
+      response.flightroute = {
+        callsign: plane.flight,
+        airline: plane.route.airline,
+        origin: plane.route.origin,
+        destination: plane.route.destination,
+      };
+    }
+    route.fulfill({ json: { response } });
   });
   return state;
 }
@@ -184,7 +212,7 @@ async function mockRoutes(context) {
  * Viewport jeweils explizit überschrieben.
  */
 const DEVICE_PROFILES = {
-  // iPhone 6,5"/6,7": 428×926 @3x → 1284×2778
+  // iPhone 6,5": 428×926 @3x → 1284×2778 (von App Store Connect verlangt)
   iphone: {
     ...devices['iPhone 13 Pro Max'],
     viewport: { width: 428, height: 926 },
@@ -204,6 +232,24 @@ async function newAppContext(browser, deviceProfile, colorScheme) {
     timezoneId: 'Europe/Zurich',
     colorScheme,
   });
+  // Ersteinrichtung überspringen: Settings mit setupCompleted vorbelegen
+  // (Capacitor Preferences nutzt im Web localStorage mit CapacitorStorage-Präfix)
+  await context.addInitScript(
+    ([key, value]) => window.localStorage.setItem(key, value),
+    [
+      'CapacitorStorage.flightradar-settings',
+      JSON.stringify({
+        mapLayer: 'auto',
+        ip: '192.168.1.100',
+        port: 8080,
+        refreshInterval: 2,
+        categories: [],
+        markerLineTags: [['callsign'], [], []],
+        demoMode: false,
+        setupCompleted: true,
+      }),
+    ]
+  );
   const state = await mockRoutes(context);
   return { context, state };
 }
@@ -222,12 +268,12 @@ async function shoot(page, dir, name) {
 
 /** Warten, bis Karte + Marker gerendert sind (Tiles geladen, Netz ruhig) */
 async function waitForMap(page) {
-  await page.waitForSelector('.plane-marker', { timeout: 20_000 });
+  await page.waitForSelector('.plane-marker', { timeout: 60_000 });
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(3_000); // Tile-Fade-In der Karte abwarten
 }
 
-/** Kompletter Screenshot-Satz (hell 01–05, dunkel 06) für ein Geräteprofil */
+/** Kompletter Screenshot-Satz (hell 01–07, dunkel 08) für ein Geräteprofil */
 async function captureSet(browser, deviceKey) {
   const dir = resolve(OUT_DIR, deviceKey);
   mkdirSync(dir, { recursive: true });
@@ -246,9 +292,21 @@ async function captureSet(browser, deviceKey) {
     await waitUntilIdeal(page, state);
     await shoot(page, dir, '01-karte.png');
 
-    // Flugzeug antippen → Sheet mit Zusammenfassung + Track-Linie auf der Karte
-    await page.locator('.plane-marker', { hasText: 'EDW24' }).click();
-    await page.waitForSelector('ion-modal .sheet-summary');
+    // Flugzeug antippen → Sheet mit Zusammenfassung + Track-Linie auf der Karte.
+    // dispatchEvent statt click(): der Marker bewegt sich mit jedem Poll und
+    // kann knapp ausserhalb des Viewports liegen — die Karte zentriert nach
+    // der Auswahl ohnehin per flyTo auf das Flugzeug.
+    const sheetSummary = page.locator('ion-modal .sheet-summary');
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      await page.locator('.plane-marker', { hasText: 'EDW24' }).dispatchEvent('click');
+      try {
+        await sheetSummary.waitFor({ state: 'visible', timeout: 5_000 });
+        break;
+      } catch {
+        // Klick ging ins Leere (Marker beim Poll gerade ersetzt) → nochmals
+        if (attempt === 5) throw new Error('Detail-Sheet öffnete sich nicht');
+      }
+    }
     await page.waitForTimeout(5_000); // ein paar Polls → Track-Linie wächst
     await shoot(page, dir, '02-flug-details-karte.png');
 
@@ -259,16 +317,29 @@ async function captureSet(browser, deviceKey) {
     await page.evaluate(() => document.querySelector('ion-modal')?.dismiss());
     await page.waitForTimeout(800);
 
+    // Retro-Anzeige (LED-Matrix mit aktuellem Anflug)
+    await page.locator('ion-tab-button[tab="retro"]').click();
+    await page.waitForSelector('.led-canvas');
+    await page.waitForTimeout(3_000); // Enrichment + LED-Rendering abwarten
+    await shoot(page, dir, '04-retro.png');
+
     // Liste
     await page.locator('ion-tab-button[tab="list"]').click();
-    await page.waitForSelector('ion-list ion-item');
+    // :visible — die zuvor besuchte Retro-Seite behält ihre (versteckten)
+    // ion-items im DOM des Router-Outlets
+    await page.waitForSelector('ion-list ion-item:visible');
     await page.waitForTimeout(1_500);
-    await shoot(page, dir, '04-liste.png');
+    await shoot(page, dir, '05-liste.png');
 
     // Einstellungen
     await page.locator('ion-tab-button[tab="settings"]').click();
     await page.waitForTimeout(1_500);
-    await shoot(page, dir, '05-einstellungen.png');
+    await shoot(page, dir, '06-einstellungen.png');
+
+    // Info
+    await page.locator('ion-tab-button[tab="info"]').click();
+    await page.waitForTimeout(1_500);
+    await shoot(page, dir, '07-info.png');
 
     await context.close();
   }
@@ -284,7 +355,7 @@ async function captureSet(browser, deviceKey) {
     await page.goto(`${BASE_URL}/map`);
     await waitForMap(page);
     await waitUntilIdeal(page, state);
-    await shoot(page, dir, '06-karte-dunkel.png');
+    await shoot(page, dir, '08-karte-dunkel.png');
     await context.close();
   }
 }

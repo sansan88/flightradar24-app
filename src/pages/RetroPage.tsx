@@ -8,7 +8,6 @@ import {
   IonNote,
   IonPage,
   IonTitle,
-  IonToggle,
   IonToolbar,
   useIonViewDidEnter,
   useIonViewWillLeave,
@@ -42,8 +41,7 @@ function matchesPiFilter(ac: Aircraft): boolean {
 }
 
 const RetroPage: React.FC = () => {
-  const { aircraft, enrichments, error } = useApp();
-  const [piFilter, setPiFilter] = useState(true);
+  const { aircraft, enrichments } = useApp();
   const [cycle, setCycle] = useState(0);
   const [active, setActive] = useState(false);
 
@@ -56,15 +54,13 @@ const RetroPage: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [active]);
 
-  const matches = piFilter
-    ? aircraft.filter(matchesPiFilter)
-    : aircraft.filter((ac) => ac.flight?.trim());
+  const matches = aircraft.filter(matchesPiFilter);
   const current = matches.length > 0 ? matches[cycle % matches.length] : null;
   const enrichment = current ? enrichments[current.hex] : undefined;
 
   // Die drei Textzeilen wie im Pi-Script zusammensetzen
   let top = 'SkyPi';
-  let center = piFilter ? 'Kein Anflug' : 'Keine Flugzeuge';
+  let center = 'Kein Anflug';
   let bottom = 'Retro Display';
   if (current) {
     const details = enrichment?.details;
@@ -103,36 +99,17 @@ const RetroPage: React.FC = () => {
           </IonToolbar>
         </IonHeader>
 
-        {error && (
-          <IonItem color="danger" lines="none">
-            <IonLabel>Keine Verbindung zum Aircraft Service: {error}</IonLabel>
-          </IonItem>
-        )}
-
         <LedMatrixDisplay top={top} center={center} bottom={bottom} active={active} />
 
         <div className="retro-status ion-text-center">
           <IonNote>
-            {piFilter
-              ? matches.length > 0
-                ? `${matches.length === 1 ? '1 Anflug' : `${matches.length} Anflüge`} im Filter – Anzeige wechselt alle 6 s`
-                : 'Kein Flugzeug erfüllt den Anflug-Filter (sinkend, unter 4 572 m)'
-              : `${matches.length} Flugzeuge mit Callsign – Anzeige wechselt alle 6 s`}
+            {matches.length > 0
+              ? `${matches.length === 1 ? '1 Anflug' : `${matches.length} Anflüge`} im Filter – Anzeige wechselt alle 6 s`
+              : 'Kein Flugzeug erfüllt den Anflug-Filter (sinkend, unter 4 572 m)'}
           </IonNote>
         </div>
 
         <IonList inset>
-          <IonItem>
-            <IonToggle
-              checked={piFilter}
-              onIonChange={(e) => setPiFilter(e.detail.checked)}
-            >
-              <IonLabel>
-                Anflug-Filter wie auf dem Pi
-                <p>Nur sinkende Flugzeuge unter 15 000 ft anzeigen</p>
-              </IonLabel>
-            </IonToggle>
-          </IonItem>
           {current && (
             <IonItem lines="none">
               <IonLabel>

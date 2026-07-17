@@ -1,10 +1,10 @@
-import type { StyleSpecification } from 'maplibre-gl';
+import type { RequestParameters, StyleSpecification } from 'maplibre-gl';
+import { Capacitor } from '@capacitor/core';
+import { version } from '../../package.json';
 
 /** Verfügbare Karten-Hintergründe */
 export type MapLayerKey =
   | 'auto'
-  | 'carto-light'
-  | 'carto-dark'
   | 'swisstopo-color'
   | 'swisstopo-grey'
   | 'swisstopo-satellite'
@@ -13,27 +13,41 @@ export type MapLayerKey =
 /** Anzeigenamen für die Einstellungen */
 export const MAP_LAYERS: Record<MapLayerKey, string> = {
   auto: 'Automatisch (hell/dunkel)',
-  'carto-light': 'Hell – dezent (Carto)',
-  'carto-dark': 'Dunkel (Carto)',
-  'swisstopo-grey': 'Swisstopo Landeskarte grau',
   'swisstopo-color': 'Swisstopo Landeskarte farbig',
+  'swisstopo-grey': 'Swisstopo Landeskarte grau',
   'swisstopo-satellite': 'Swisstopo Luftbild',
   osm: 'OpenStreetMap',
 };
 
 /**
- * 'auto' anhand des Geräte-Themes auflösen (Carto hell/dunkel),
- * alle anderen Layer unverändert zurückgeben.
+ * 'auto' anhand des Geräte-Themes auflösen (Landeskarte farbig hell,
+ * Landeskarte grau dunkel), alle anderen Layer unverändert zurückgeben.
  */
 export function resolveMapLayer(key: MapLayerKey): Exclude<MapLayerKey, 'auto'> {
   if (key !== 'auto') return key;
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches
-    ? 'carto-dark'
-    : 'carto-light';
+    ? 'swisstopo-grey'
+    : 'swisstopo-color';
 }
 
 const OSM_ATTRIBUTION =
   '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+/**
+ * OSM Tile Usage Policy: Apps müssen sich mit eindeutigem, stabilem
+ * User-Agent ausweisen. In der nativen App laufen die Kachel-Requests über
+ * CapacitorHttp (URLSession), das explizite Header durchreicht — im Browser
+ * ist der User-Agent-Header nicht setzbar (dort zählt der Referer).
+ */
+const APP_USER_AGENT = `SkyPi/${version} (+https://github.com/sansan88/flightradar24-app)`;
+
+/** transformRequest für MapLibre: OSM-Kacheln in der nativen App kennzeichnen */
+export function transformTileRequest(url: string): RequestParameters | undefined {
+  if (Capacitor.isNativePlatform() && url.includes('tile.openstreetmap.org')) {
+    return { url, headers: { 'User-Agent': APP_USER_AGENT } };
+  }
+  return undefined;
+}
 const SWISSTOPO_ATTRIBUTION =
   '© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>';
 
@@ -57,27 +71,9 @@ function swisstopoTiles(layer: string, format: string): string[] {
   ];
 }
 
-function cartoTiles(style: string): string[] {
-  return ['a', 'b', 'c', 'd'].map(
-    (s) => `https://${s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}.png`
-  );
-}
-
 /** MapLibre-Style für den gewählten Karten-Hintergrund */
 export function mapStyle(key: MapLayerKey): StyleSpecification {
   switch (resolveMapLayer(key)) {
-    case 'carto-light':
-      return rasterStyle(
-        cartoTiles('light_all'),
-        `${OSM_ATTRIBUTION} © <a href="https://carto.com/attributions">CARTO</a>`,
-        20
-      );
-    case 'carto-dark':
-      return rasterStyle(
-        cartoTiles('dark_all'),
-        `${OSM_ATTRIBUTION} © <a href="https://carto.com/attributions">CARTO</a>`,
-        20
-      );
     case 'swisstopo-color':
       return rasterStyle(
         swisstopoTiles('ch.swisstopo.pixelkarte-farbe', 'jpeg'),

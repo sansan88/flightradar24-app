@@ -10,3 +10,10 @@
   font-size: 13px;
   line-height: 1.4;
 }
+
+/* «Demodaten verwenden» unterhalb des fehlgeschlagenen Verbindungstests:
+   voll breit, bündig mit den Inset-Listen (Note ist 32px eingerückt,
+   die Listen nur 16px) */
+.settings-demo-button {
+  margin: 12px -16px 0;
+}

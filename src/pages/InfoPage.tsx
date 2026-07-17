@@ -77,7 +77,7 @@ const InfoPage: React.FC = () => (
           <IonLabel className="ion-text-wrap">
             Flugdaten kommen direkt von deinem Raspberry Pi. Flugzeug- und
             Routeninfos liefert adsbdb.com, die Kartenkacheln stammen von
-            Swisstopo bzw. OpenStreetMap/Carto, das Niederschlagsradar von
+            Swisstopo bzw. OpenStreetMap, das Niederschlagsradar von
             MeteoSchweiz.
           </IonLabel>
         </IonItem>
@@ -118,6 +118,15 @@ const InfoPage: React.FC = () => (
         >
           <IonIcon icon={logoGithub} slot="start" color="primary" />
           <IonLabel>Pi-Setup (ADS-B-Empfänger)</IonLabel>
+        </IonItem>
+        <IonItem
+          href="https://github.com/mrjackwills/adsbdb"
+          target="_blank"
+          rel="noopener"
+          detail
+        >
+          <IonIcon icon={logoGithub} slot="start" color="primary" />
+          <IonLabel>adsbdb (Flugzeug- & Routendaten)</IonLabel>
         </IonItem>
       </IonList>
     </IonContent>

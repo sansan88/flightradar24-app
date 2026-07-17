@@ -9,12 +9,10 @@ import React, {
 import type { Aircraft, TrackPoint } from '../types/aircraft';
 import { categoryOf } from '../types/aircraft';
 import { fetchAircraft } from '../services/aircraftService';
+import { fetchDemoAircraft, resetDemo } from '../services/demoService';
+import { clearAdsbdbCache, fetchEnrichment, type Enrichment } from '../services/adsbdbService';
 import {
-  fetchAircraftDetails,
-  fetchFlightRoute,
-  type Enrichment,
-} from '../services/adsbdbService';
-import {
+  clearStoredSettings,
   DEFAULT_SETTINGS,
   loadSettings,
   saveSettings,
@@ -23,7 +21,13 @@ import {
 
 interface AppState {
   settings: Settings;
+  /** true, sobald die persistierten Einstellungen geladen sind */
+  settingsReady: boolean;
   updateSettings: (patch: Partial<Settings>) => void;
+  /** Alle Einstellungen auf Werkszustand zurücksetzen (inkl. Ersteinrichtung) */
+  resetSettings: () => Promise<void>;
+  /** Lokalen adsbdb-Cache (Flugzeug-/Routeninfos) leeren */
+  clearEnrichmentCache: () => Promise<void>;
   /** Alle empfangenen Flugzeuge (ungefiltert) */
   aircraft: Aircraft[];
   /** Nach Kategorie gefilterte Flugzeuge */
@@ -100,9 +104,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   /**
-   * Route und Flugzeugdetails von adsbdb.com nachladen.
+   * Route und Flugzeugdetails von adsbdb.com nachladen — pro Flugzeug in
+   * einem kombinierten Request (Einzel-Calls nur als Fallback im Service).
    * Läuft sequenziell pro Flugzeug; Ergebnisse (inkl. 404-Misses) werden
-   * im Service 24 h gecacht, sodass pro Flieger nur einmal angefragt wird.
+   * im Service 24 h gecacht (persistent), sodass pro Flieger nur einmal
+   * angefragt wird.
    */
   const enrich = useCallback(async (list: Aircraft[]) => {
     if (enrichInFlight.current) return;
@@ -110,10 +116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       for (const ac of list) {
         const callsign = ac.flight?.trim();
-        const [route, details] = await Promise.all([
-          callsign ? fetchFlightRoute(callsign) : Promise.resolve(null),
-          fetchAircraftDetails(ac.hex),
-        ]);
+        const { route, details } = await fetchEnrichment(ac.hex, callsign || undefined);
         if (route || details) {
           setEnrichments((prev) => {
             const existing = prev[ac.hex];
@@ -147,13 +150,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
+      // Demomodus endet, sobald in den Einstellungen ein Service verbunden
+      // (IP/Port geändert) wird – ausser der Patch setzt demoMode explizit.
+      if (
+        prev.demoMode &&
+        !('demoMode' in patch) &&
+        (patch.ip !== undefined || patch.port !== undefined)
+      ) {
+        next.demoMode = false;
+      }
       void saveSettings(next);
       return next;
     });
   }, []);
 
+  const resetSettings = useCallback(async () => {
+    await clearStoredSettings();
+    // setupCompleted: false → Welcome Screen (Ersteinrichtung) erscheint wieder
+    setSettings({ ...DEFAULT_SETTINGS });
+  }, []);
+
+  const clearEnrichmentCache = useCallback(async () => {
+    await clearAdsbdbCache();
+    // Bereits angezeigte Zusatzinfos verwerfen; der nächste Poll lädt sie neu
+    setEnrichments({});
+  }, []);
+
+  // Beim Wechsel in/aus dem Demomodus alte Flugzeuge und Tracks verwerfen,
+  // damit keine Demo-Flieger neben echten Daten stehen bleiben (und umgekehrt).
+  const prevDemoMode = useRef<boolean | null>(null);
   useEffect(() => {
     if (!settingsLoaded) return;
+    if (prevDemoMode.current !== null && prevDemoMode.current !== settings.demoMode) {
+      setAircraft([]);
+      setMessages(0);
+      setLastUpdate(null);
+      setError(null);
+      const tracks = tracksRef.current;
+      for (const hex of Object.keys(tracks)) delete tracks[hex];
+      resetDemo();
+    }
+    prevDemoMode.current = settings.demoMode;
+  }, [settingsLoaded, settings.demoMode]);
+
+  useEffect(() => {
+    // Vor Abschluss der Ersteinrichtung (Welcome Screen) nicht pollen
+    if (!settingsLoaded || !settings.setupCompleted) return;
 
     let cancelled = false;
 
@@ -161,14 +203,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (pollInFlight.current) return;
       pollInFlight.current = true;
       try {
-        const data = await fetchAircraft(settings);
+        const data = settings.demoMode
+          ? fetchDemoAircraft()
+          : await fetchAircraft(settings);
         if (cancelled) return;
         setAircraft(data.aircraft ?? []);
         recordTracks(data.aircraft ?? []);
         setMessages(data.messages ?? 0);
         setLastUpdate(Date.now());
         setError(null);
-        void enrich(data.aircraft ?? []);
+        // Demo-Flieger nicht bei adsbdb.com anfragen (fiktive Kennungen)
+        if (!settings.demoMode) void enrich(data.aircraft ?? []);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : String(err));
@@ -196,7 +241,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider
       value={{
         settings,
+        settingsReady: settingsLoaded,
         updateSettings,
+        resetSettings,
+        clearEnrichmentCache,
         aircraft,
         filteredAircraft,
         lastUpdate,

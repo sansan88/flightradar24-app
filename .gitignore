@@ -10,3 +10,5 @@ ios/DerivedData/
 ios/capacitor-cordova-ios-plugins/
 ios/App/App/capacitor.config.json
 xcuserdata/
+
+resources/ios/**/*

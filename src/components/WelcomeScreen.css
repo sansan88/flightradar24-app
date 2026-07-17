@@ -1,0 +1,158 @@
+/* Vollbild-Overlay über der ganzen App (inkl. Tab-Bar) in derselben
+   Grouped-Optik wie die Einstellungsseite: Inset-Listen auf grauem
+   Hintergrund (Dark Mode invertiert, siehe theme/variables.css). */
+.welcome-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #f2f2f7;
+  color: var(--ion-text-color, #000);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(env(safe-area-inset-top) + 24px) 0
+    calc(env(safe-area-inset-bottom) + 24px);
+  display: flex;
+  justify-content: center;
+}
+
+.welcome-content {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* App-Icon-Kachel im iOS-Stil */
+.welcome-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: linear-gradient(
+    160deg,
+    var(--ion-color-primary-tint, #4d7dfa),
+    var(--ion-color-primary-shade, #2d54d8)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 18px rgba(56, 100, 235, 0.35);
+  margin-bottom: 14px;
+}
+
+.welcome-logo ion-icon {
+  font-size: 40px;
+  color: #ffffff;
+}
+
+.welcome-content h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.welcome-tagline {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--ion-color-medium);
+}
+
+.welcome-intro {
+  margin: 12px 24px 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ion-color-medium);
+}
+
+.welcome-section {
+  width: 100%;
+  text-align: left;
+}
+
+/* Abschnitts-Titel wie ein iOS-Grouped-List-Header */
+.welcome-section-header {
+  margin: 0 32px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ion-color-medium);
+}
+
+/* Inset-Liste exakt wie in den Einstellungen (weisse Items auf Grau) */
+.welcome-form {
+  margin-top: 0;
+  margin-bottom: 0;
+  background: transparent;
+}
+
+.welcome-button {
+  margin: 12px 16px 0;
+}
+
+.welcome-hint {
+  display: block;
+  margin: 10px 32px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.welcome-hint--center {
+  text-align: center;
+}
+
+.welcome-hint a {
+  color: var(--ion-color-primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.welcome-hint a ion-icon {
+  vertical-align: -2px;
+  margin-left: 2px;
+}
+
+.welcome-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% - 32px);
+  margin: 20px 16px;
+  color: var(--ion-color-medium);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.welcome-divider::before,
+.welcome-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* Direktes Flex-Kind von .welcome-content: ohne stretch würde der Button
+   auf Inhaltsbreite schrumpfen – gleiche Breite wie die Buttons im Formular */
+.welcome-demo-button {
+  align-self: stretch;
+  margin-top: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .welcome-screen {
+    background: #000000;
+  }
+
+  .welcome-form {
+    --ion-item-background: #1c1c1e;
+  }
+
+  .welcome-divider::before,
+  .welcome-divider::after {
+    background: rgba(255, 255, 255, 0.16);
+  }
+}

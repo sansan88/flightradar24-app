@@ -112,7 +112,7 @@ npm run dev
 ```
 
 Der Vite-Dev-Server proxied `/data/*` zum Raspberry Pi, weil der Pi-Webserver
-(lighttpd) keine CORS-Header sendet. Standardziel ist `http://192.168.1.174:8080`,
+(lighttpd) keine CORS-Header sendet. Standardziel ist `http://192.168.1.100:8080`,
 überschreibbar per Umgebungsvariable:
 
 ```bash
